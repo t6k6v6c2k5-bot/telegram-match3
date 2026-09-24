@@ -1229,6 +1229,55 @@
   }
   requestAnimationFrame(tickParticles);
 
+  /* ---------- Конфетти на весь экран при победе ---------- */
+  const confettiCanvas = document.getElementById('confettiCanvas');
+  const cctx = confettiCanvas.getContext('2d');
+  let confettiParticles = [];
+  let confettiRunning = false;
+  function resizeConfettiCanvas() {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeConfettiCanvas);
+  resizeConfettiCanvas();
+
+  function fireConfetti(stars) {
+    resizeConfettiCanvas();
+    const colors = ['#ff4fa3', '#ffd23f', '#4fe3ff', '#b24dff', '#38d97a'];
+    const count = 60 + (stars || 1) * 25;
+    for (let i = 0; i < count; i++) {
+      confettiParticles.push({
+        x: Math.random() * confettiCanvas.width,
+        y: -20 - Math.random() * 200,
+        vx: (Math.random() - 0.5) * 2.2,
+        vy: 2 + Math.random() * 3,
+        size: 4 + Math.random() * 5,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.3,
+        life: 1
+      });
+    }
+    if (!confettiRunning) { confettiRunning = true; requestAnimationFrame(tickConfetti); }
+  }
+
+  function tickConfetti() {
+    cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    confettiParticles.forEach((p) => { p.x += p.vx; p.y += p.vy; p.vy += 0.03; p.rot += p.vrot; p.life -= 0.006; });
+    confettiParticles = confettiParticles.filter((p) => p.life > 0 && p.y < confettiCanvas.height + 40);
+    confettiParticles.forEach((p) => {
+      cctx.save();
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot);
+      cctx.globalAlpha = Math.max(0, p.life);
+      cctx.fillStyle = p.color;
+      cctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      cctx.restore();
+    });
+    if (confettiParticles.length > 0) requestAnimationFrame(tickConfetti);
+    else { confettiRunning = false; cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height); }
+  }
+
   function burstAtCells(cellKeys, colorOverride) {
     cellKeys.forEach((k) => {
       const [r, c] = k.split(',').map(Number);
@@ -2092,6 +2141,7 @@
     submitScoreToLeaderboard(currentLevel.score);
     saveState();
     Sound.win(); haptic('success');
+    fireConfetti(stars); // праздничная анимация — больше конфетти за 3 звезды
     showResultModal(true, stars, coinsAward);
     syncProgressWithServer(); // подтягиваем свежие данные в админку сразу после победы
   }
@@ -2131,9 +2181,51 @@
     }
     armedBooster = null;
     selected = null;
-    busy = false;
+    busy = true; // блокируем ввод, пока показывается интро-карточка уровня
     paused = false;
     resetIdleTimer();
+    showLevelIntro(currentLevel);
+  }
+
+  /**
+   * Интро-карточка перед стартом уровня — как в больших match-3 играх: коротко показывает
+   * номер уровня, режим и цели, прежде чем открыть поле. Тап по кнопке — сразу старт,
+   * иначе автопродолжение через 2.6с, чтобы не задерживать опытных игроков.
+   */
+  let introAutoTimer = null;
+  function showLevelIntro(cfg) {
+    document.getElementById('introLevelBadge').textContent = cfg.level;
+    document.getElementById('introLevelTitle').textContent = 'Уровень ' + cfg.level;
+    document.getElementById('introModeLabel').textContent = `${MODE_NAME[cfg.mode]} · ${cfg.size}×${cfg.size}`;
+    const row = document.getElementById('introGoalsRow');
+    row.innerHTML = '';
+    cfg.goals.forEach((g) => {
+      let icon = '⭐';
+      if (g.type === 'collect') icon = FRUIT_EMOJI[g.fruit];
+      else if (g.type === 'ice') icon = '🧊';
+      else if (g.type === 'ingredient') icon = cfg.ingredientEmoji;
+      else if (g.type === 'combo') icon = '🔥';
+      const chip = document.createElement('div');
+      chip.className = 'intro-goal-chip';
+      chip.textContent = `${icon} ${g.target}`;
+      row.appendChild(chip);
+    });
+    document.getElementById('modalLevelIntro').classList.remove('hidden');
+    Sound.select(); haptic('light');
+    clearTimeout(introAutoTimer);
+    introAutoTimer = setTimeout(proceedFromLevelIntro, 2600);
+  }
+  function proceedFromLevelIntro() {
+    const modal = document.getElementById('modalLevelIntro');
+    if (modal.classList.contains('hidden')) return; // уже обработано
+    clearTimeout(introAutoTimer);
+    modal.classList.add('hidden');
+    beginLevelPlay();
+  }
+  document.getElementById('btnStartLevelIntro').addEventListener('click', proceedFromLevelIntro);
+
+  function beginLevelPlay() {
+    busy = false;
     showScreen('screenGame');
     buildBoardForLevel(currentLevel);
     renderGoalPanel();
@@ -2193,15 +2285,34 @@
      15. СТАРТ ПРИЛОЖЕНИЯ
      ============================================================ */
   async function boot() {
+    const statusEl = document.getElementById('splashStatus');
+    const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
+
     initTelegram();
     applyEquippedSkin();
     renderPlayerBadge();
     renderResources();
     renderBoosterCounts();
+
+    setStatus('Проверка доступа...');
     await checkAdminAccess();
+
+    setStatus('Проверка режима игры...');
     const blocked = await checkMaintenanceAndSettings();
+
+    setStatus('Синхронизация прогресса...');
     await syncProgressWithServer(); // пушим прогресс на сервер + проверяем бан
-    if (!blocked) showScreen('screenMenu');
+
+    setStatus('Готово!');
+    const spinner = document.querySelector('.splash-spinner');
+    if (spinner) spinner.classList.add('hidden');
+    const contBtn = document.getElementById('btnSplashContinue');
+    contBtn.classList.remove('hidden');
+    contBtn.addEventListener('click', () => {
+      ensureAudio(); Sound.click(); haptic('light');
+      document.getElementById('splashScreen').classList.add('hidden');
+      if (!blocked) showScreen('screenMenu');
+    }, { once: true });
   }
   boot();
 
