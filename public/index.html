@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Три в ряд</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <header class="topbar">
+      <div class="stat">
+        <span class="stat-label">Очки</span>
+        <span class="stat-value" id="scoreValue">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Ходы</span>
+        <span class="stat-value" id="movesValue">20</span>
+      </div>
+      <button class="restart-btn" id="restartTopBtn" title="Начать заново">↻</button>
+    </header>
+
+    <main class="board-wrap">
+      <div id="board" class="board"></div>
+    </main>
+
+    <div id="comboToast" class="combo-toast hidden"></div>
+
+    <div id="gameOverScreen" class="overlay hidden">
+      <div class="overlay-card">
+        <h2>Игра окончена!</h2>
+        <p class="final-score-label">Ваш результат</p>
+        <p class="final-score" id="finalScoreValue">0</p>
+        <button id="playAgainBtn" class="primary-btn">Переиграть</button>
+      </div>
+    </div>
+
+    <div id="startScreen" class="overlay">
+      <div class="overlay-card">
+        <h1>Три в ряд</h1>
+        <p class="subtitle">Соединяй по 3 и более одинаковых фишек</p>
+        <button id="startBtn" class="primary-btn">Играть</button>
+      </div>
+    </div>
+
+  </div>
+
+<script src="game.js"></script>
+</body>
+</html>
