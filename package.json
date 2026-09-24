@@ -1,15 +1,18 @@
 {
-  "name": "match3-telegram-miniapp",
+  "name": "fruit-blitz-server",
   "version": "1.0.0",
-  "description": "Telegram Mini App - игра Три в ряд (Match-3)",
+  "description": "Backend + Telegram bot for Fruit Blitz Mini App",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "node-telegram-bot-api": "^0.66.0",
+    "cors": "^2.8.5"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   }
 }
+
