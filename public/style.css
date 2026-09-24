@@ -62,11 +62,15 @@ html, body {
 .hidden { display: none !important; }
 
 /* ---------------- Ресурсная панель ---------------- */
+/* position: sticky — остаётся видимой и зафиксированной в самом верху приложения.
+   Экран карты уровней (ниже) получает собственный отступ, гарантированно
+   учитывающий и safe-area Telegram, и высоту этой панели, чтобы ничего
+   не наезжало друг на друга (см. #screenLevels .screen-header). */
 .resource-bar {
   display: flex; align-items: center; gap: 8px;
   height: 52px;
   padding: 0 12px;
-  background: rgba(20,10,40,0.55);
+  background: rgba(20,10,40,0.72);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--glass-border);
   position: sticky; top: 0; z-index: 40;
@@ -161,10 +165,23 @@ html, body {
 
 /* Экран карты: header остаётся видимым поверх тропинки при скролле (sticky),
    сама тропинка — обычный высокий блок внутри уже скроллящегося .screen */
-#screenLevels { padding-bottom: 0; }
+/* Экран карты: полностью отвязываем верхний отступ от общего #app padding-top
+   и задаём его ЯВНО на самой шапке — так гарантированно нет "двойного" отступа
+   и шапка всегда оказывается СТРОГО под ресурсной панелью, а не под safe-area
+   системной плашки Telegram. */
+#screenLevels {
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: calc(-1 * var(--safe-top)); /* отменяем общий отступ #app для этого экрана */
+}
 #screenLevels .screen-header {
-  position: sticky; top: 0; z-index: 10; flex-shrink: 0;
-  margin: 0 -16px 10px; padding: 0 16px 10px;
+  position: sticky;
+  /* Отступ = safe-area Telegram + место под панель ресурсов (высота 52px + запас) */
+  top: calc(var(--tg-safe-area-inset-top, 0px) + 60px);
+  margin-top: calc(var(--tg-safe-area-inset-top, 0px) + 60px) !important;
+  z-index: 10; flex-shrink: 0;
+  margin-left: -16px; margin-right: -16px; margin-bottom: 10px;
+  padding: 0 16px 10px;
   background: rgba(15, 8, 30, 0.55); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--glass-border);
 }
@@ -172,16 +189,15 @@ html, body {
 /* Трек тропинки — растягивается на полную расчётную высоту (задаётся из JS) */
 .levels-grid { position: relative; width: 100%; overflow: visible; }
 
-/* ---------------- Биомы (фоновые зоны) ---------------- */
-.biome-layer { position: absolute; left: -16px; right: -16px; overflow: hidden; z-index: 0; }
-.biome-strawberry { background: linear-gradient(180deg, #163a2c 0%, #1f5c3a 45%, #2fae6a 100%); }
-.biome-citrus { background: linear-gradient(180deg, #5c2c14 0%, #a85a1e 45%, #ffb545 100%); }
-.biome-space { background: linear-gradient(180deg, #0c0620 0%, #1c1044 45%, #3a1a66 100%); }
+/* ---------------- Биомы: ОДИН непрерывный градиент на весь трек (без швов) ---------------- */
+/* background-image задаётся инлайново из JS (buildBiomeGradientCss) — единая linear-gradient
+   с плавными стопами через все 3 биома, поэтому между зонами нет резкой горизонтальной линии. */
+.biome-gradient-bg { position: absolute; top: 0; left: -16px; right: -16px; z-index: 0; }
 .biome-label {
-  position: absolute; left: 50%; transform: translateX(-50%); top: 14px;
+  position: absolute; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px;
-  background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25); backdrop-filter: blur(6px);
-  font-weight: 800; font-size: 13px; white-space: nowrap; z-index: 2;
+  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.25); backdrop-filter: blur(6px);
+  font-weight: 800; font-size: 13px; white-space: nowrap; z-index: 2; pointer-events: none;
 }
 
 /* ---------------- Декоративный фон: плавающие фрукты/искры ---------------- */
@@ -229,6 +245,12 @@ html, body {
 .map-node .mode-tag { position: absolute; top: -6px; right: -4px; font-size: 14px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
 .map-node .size-tag { font-size: 8px; color: var(--tg-hint); margin-top: 2px; }
 .map-node .stars-row { font-size: 12px; letter-spacing: 1px; margin-top: 3px; filter: drop-shadow(0 0 4px rgba(255,210,63,0.7)); }
+/* Крупный номер уровня внутри шарика — виден ВСЕГДА, в т.ч. на заблокированных */
+.orb-number { font-size: 20px; font-weight: 900; line-height: 1; text-shadow: 0 2px 3px rgba(0,0,0,0.4); }
+.level-orb.locked .orb-number {
+  font-size: 15px; color: #ffffff; opacity: 0.8; margin-bottom: 1px; /* читаемый, но приглушённый номер поверх льда */
+}
+.level-orb.locked .lock-icon { display: block; font-size: 18px; line-height: 1; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
 
 /* Пройденные уровни: золотисто-зелёный градиент */
 .level-orb.completed {
@@ -274,7 +296,6 @@ html, body {
   box-shadow: 0 6px 0 rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.3);
   opacity: 0.75; backdrop-filter: blur(2px);
 }
-.level-orb.locked .lock-icon { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
 
 /* ---------------- Бонусные сундуки ---------------- */
 .chest-orb {
