@@ -18,10 +18,21 @@
   --radius: 18px;
   --glass-border: rgba(255,255,255,0.22);
 
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /*
+   * SAFE AREA / отступ под системную шапку Telegram.
+   * --tg-safe-area-inset-top заполняется из JS (см. applySafeArea() в game.js) реальным
+   * значением tg.safeAreaInset.top — это высота нативной плашки Telegram с кнопкой "Закрыть".
+   * env(safe-area-inset-top) — отступ под "чёлку"/статус-бар самой ОС (запасной вариант,
+   * если Telegram ещё не передал свои данные или бот открыт вне Mini App).
+   * Дополнительные 50px — гарантированный зазор, чтобы аватар, имя и кнопки меню
+   * никогда не заезжали под системную плашку, даже если она перекрывает контент сильнее insets.
+   */
+  --safe-top: calc(var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px)) + 50px);
+  --safe-bottom: var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
+/* box-sizing: border-box — чтобы padding-top из --safe-top не увеличивал итоговую высоту
+   блоков и не выталкивал контент за пределы экрана при скролле */
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
