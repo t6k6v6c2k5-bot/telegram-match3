@@ -42,7 +42,6 @@
       <button class="big-btn" id="btnWheel">🎡 Колесо Фортуны</button>
       <button class="big-btn" id="btnLeaderboard">🏆 Таблица лидеров</button>
       <button class="big-btn" id="btnAchievements">🎖 Достижения</button>
-      <button class="big-btn admin-btn hidden" id="btnAdmin">⚙️ Админ-панель</button>
     </div>
   </section>
 
@@ -207,17 +206,79 @@
     </div>
   </div>
 
-  <!-- ===================== МОДАЛКА: АДМИН-ПАНЕЛЬ ===================== -->
-  <div id="modalAdmin" class="overlay hidden">
-    <div class="overlay-card">
-      <button class="modal-x" data-close="modalAdmin">❌</button>
+  <!-- ===================== ПЛАВАЮЩАЯ КНОПКА АДМИНКИ ===================== -->
+  <button id="floatingAdminBtn" class="floating-admin-btn hidden" title="Админ-панель">⚙️</button>
+
+  <!-- ===================== ПРОДВИНУТАЯ АДМИН-ПАНЕЛЬ ===================== -->
+  <div id="modalAdminPro" class="overlay hidden">
+    <div class="overlay-card wide-card admin-card">
+      <button class="modal-x" data-close="modalAdminPro">❌</button>
       <h2>⚙️ Админ-панель</h2>
-      <button class="primary-btn" id="btnAdminCoins">+10 000 Монет 🪙</button>
-      <button class="primary-btn" id="btnAdminGems">+100 Кристаллов 💎</button>
-      <button class="primary-btn" id="btnAdminUnlock">Открыть все уровни 🔓</button>
-      <button class="primary-btn" id="btnAdminInfLives">Бесконечные жизни ❤️</button>
-      <button class="secondary-btn" id="btnAdminReset">Сбросить прогресс 🔄</button>
-      <button class="secondary-btn" data-close="modalAdmin">Закрыть</button>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="adminTabStats">Статистика</button>
+        <button class="tab-btn" data-tab="adminTabSearch">Игрок</button>
+        <button class="tab-btn" data-tab="adminTabCheats">Читы</button>
+        <button class="tab-btn" data-tab="adminTabGlobal">Настройки</button>
+      </div>
+
+      <!-- Вкладка: Статистика -->
+      <div id="adminTabStats" class="tab-content active">
+        <div id="adminStatsBox" class="admin-stats-box">Загрузка...</div>
+        <button class="secondary-btn" id="btnAdminRefreshStats">🔄 Обновить</button>
+        <div class="admin-broadcast-block">
+          <h3>📢 Рассылка</h3>
+          <textarea id="broadcastText" class="admin-textarea" placeholder="Текст сообщения (поддерживается HTML)"></textarea>
+          <input id="broadcastBtnText" class="admin-input" placeholder="Текст кнопки (необязательно)" value="🎮 Играть" />
+          <button class="primary-btn" id="btnSendBroadcast">Отправить всем</button>
+          <div id="broadcastProgressWrap" class="broadcast-progress-wrap hidden">
+            <div class="quest-progress-bar"><div id="broadcastProgressFill" class="quest-progress-fill" style="width:0%"></div></div>
+            <div id="broadcastProgressLabel" class="admin-small-label">0 / 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Вкладка: Поиск игрока -->
+      <div id="adminTabSearch" class="tab-content">
+        <div class="admin-search-row">
+          <input id="adminSearchInput" class="admin-input" placeholder="Telegram ID или @username" />
+          <button class="primary-btn admin-search-btn" id="btnAdminSearch">🔍</button>
+        </div>
+        <div id="adminSearchResults" class="admin-search-results"></div>
+        <div id="adminPlayerDetail" class="admin-player-detail hidden"></div>
+      </div>
+
+      <!-- Вкладка: Быстрые читы (для своего аккаунта) -->
+      <div id="adminTabCheats" class="tab-content">
+        <p class="subtitle">Применяются к вашему собственному аккаунту</p>
+        <button class="primary-btn" id="btnAdminCoins">+10 000 Монет 🪙</button>
+        <button class="primary-btn" id="btnAdminGems">+500 Кристаллов 💎</button>
+        <button class="primary-btn" id="btnAdminUnlock">Открыть все уровни 🔓</button>
+        <button class="primary-btn" id="btnAdminInfLives">Бесконечные жизни ❤️</button>
+        <button class="secondary-btn" id="btnAdminReset">Сбросить свой прогресс 🔄</button>
+      </div>
+
+      <!-- Вкладка: Глобальные настройки -->
+      <div id="adminTabGlobal" class="tab-content">
+        <div class="admin-toggle-row">
+          <div><b>🛠 Режим техработ</b><br /><span class="admin-small-label">Блокирует вход всем, кроме админов</span></div>
+          <button class="secondary-btn admin-toggle-btn" id="btnToggleMaintenance">Выкл</button>
+        </div>
+        <div class="admin-toggle-row">
+          <div><b>🎉 Ивент x2 награды</b><br /><span class="admin-small-label">Удваивает монеты за прохождение</span></div>
+          <button class="secondary-btn admin-toggle-btn" id="btnToggleDouble">Выкл</button>
+        </div>
+      </div>
+
+      <button class="secondary-btn" data-close="modalAdminPro">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- ===================== ЭКРАН ТЕХНИЧЕСКИХ РАБОТ ===================== -->
+  <div id="maintenanceScreen" class="overlay hidden maintenance-screen">
+    <div class="overlay-card">
+      <div class="maintenance-icon">🛠️</div>
+      <h2>Ведутся технические работы</h2>
+      <p class="subtitle">Мы скоро вернёмся с новыми уровнями и улучшениями! Попробуйте зайти чуть позже 🍓</p>
     </div>
   </div>
 
