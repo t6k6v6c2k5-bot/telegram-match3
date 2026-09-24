@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>Fruit Blast — Три в ряд</title>
+<title>Fruit Blitz — Три в ряд</title>
 <link rel="stylesheet" href="style.css" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -26,20 +26,23 @@
       <div class="player-info">
         <span class="player-hello">Привет,</span>
         <span id="playerName" class="player-name">Игрок</span>
+        <span id="playerTitle" class="player-title"></span>
       </div>
     </div>
 
     <div class="logo-wrap">
-      <h1 class="game-logo"><span>FRUIT</span><span class="logo-accent">BLAST</span></h1>
+      <h1 class="game-logo"><span>FRUIT</span><span class="logo-accent">BLITZ</span></h1>
       <p class="logo-sub">Три в ряд · Сочно · Азартно</p>
     </div>
 
     <div class="menu-buttons">
       <button class="big-btn primary-glow" id="btnPlay">▶ Играть</button>
       <button class="big-btn" id="btnShop">🛍 Магазин</button>
+      <button class="big-btn" id="btnQuests">📋 Задания</button>
       <button class="big-btn" id="btnWheel">🎡 Колесо Фортуны</button>
       <button class="big-btn" id="btnLeaderboard">🏆 Таблица лидеров</button>
       <button class="big-btn" id="btnAchievements">🎖 Достижения</button>
+      <button class="big-btn admin-btn hidden" id="btnAdmin">⚙️ Админ-панель</button>
     </div>
   </section>
 
@@ -57,13 +60,15 @@
     <div class="game-topbar">
       <button class="icon-btn" id="btnPause">⏸</button>
       <div class="goal-panel" id="goalPanel"></div>
-      <div class="counter-pill" title="Ходы">👣<span id="movesValue">20</span></div>
+      <div class="counter-pill" id="movesPill" title="Ходы">👣<span id="movesValue">20</span></div>
+      <div class="counter-pill hidden" id="timePill" title="Время">⏱<span id="timeValue">60</span></div>
       <div class="counter-pill" title="Очки">⭐<span id="scoreValue">0</span></div>
       <button id="soundToggleBtnGame" class="icon-btn" title="Звук">🔊</button>
     </div>
 
     <div class="board-wrap">
       <div id="board" class="board"></div>
+      <canvas id="particleCanvas" class="particle-canvas"></canvas>
     </div>
 
     <div id="comboToast" class="combo-toast hidden"></div>
@@ -82,52 +87,88 @@
     </div>
   </section>
 
-  <!-- ===================== МОДАЛКА: МАГАЗИН ===================== -->
+  <!-- ===================== МОДАЛКА: МАГАЗИН (ВКЛАДКИ) ===================== -->
   <div id="modalShop" class="overlay hidden">
     <div class="overlay-card wide-card">
       <button class="modal-x" data-close="modalShop">❌</button>
       <h2>Магазин</h2>
-      <div class="shop-section">
-        <h3>Бустеры за монеты 🪙</h3>
-        <div class="shop-grid">
-          <div class="shop-card">
-            <div class="shop-icon">🔨</div>
-            <div class="shop-name">Молот</div>
-            <div class="shop-desc">Уничтожает одну фишку</div>
-            <button class="shop-buy-btn" data-shop-buy="hammer" data-cost="150" data-currency="coins">150 🪙</button>
-          </div>
-          <div class="shop-card">
-            <div class="shop-icon">🔀</div>
-            <div class="shop-name">Перемешать</div>
-            <div class="shop-desc">Перемешивает поле</div>
-            <button class="shop-buy-btn" data-shop-buy="shuffle" data-cost="120" data-currency="coins">120 🪙</button>
-          </div>
-          <div class="shop-card">
-            <div class="shop-icon">➕5</div>
-            <div class="shop-name">+5 ходов</div>
-            <div class="shop-desc">Добавляет 5 ходов</div>
-            <button class="shop-buy-btn" data-shop-buy="moves" data-cost="200" data-currency="coins">200 🪙</button>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="tabBoosters">Бустеры</button>
+        <button class="tab-btn" data-tab="tabSkins">Скины</button>
+        <button class="tab-btn" data-tab="tabFrames">Рамки</button>
+      </div>
+
+      <div id="tabBoosters" class="tab-content active">
+        <div class="shop-section">
+          <h3>Бустеры и жизни</h3>
+          <div class="shop-grid">
+            <div class="shop-card">
+              <div class="shop-icon">❤️</div>
+              <div class="shop-name">Полные жизни</div>
+              <div class="shop-desc">5 из 5 жизней</div>
+              <button class="shop-buy-btn" data-shop-buy="lives" data-cost="100" data-currency="coins">100 🪙</button>
+              <button class="shop-buy-btn alt" data-shop-buy="lives" data-cost="5" data-currency="gems">5 💎</button>
+            </div>
+            <div class="shop-card">
+              <div class="shop-icon">🔨</div>
+              <div class="shop-name">Молотки ×3</div>
+              <div class="shop-desc">Разбивают любую фишку</div>
+              <button class="shop-buy-btn" data-shop-buy="hammer" data-cost="150" data-currency="coins">150 🪙</button>
+            </div>
+            <div class="shop-card">
+              <div class="shop-icon">🔀</div>
+              <div class="shop-name">Перемешки ×3</div>
+              <div class="shop-desc">Перетасовывают поле</div>
+              <button class="shop-buy-btn" data-shop-buy="shuffle" data-cost="130" data-currency="coins">130 🪙</button>
+            </div>
+            <div class="shop-card">
+              <div class="shop-icon">🚀</div>
+              <div class="shop-name">Ракеты ×2</div>
+              <div class="shop-desc">Взрывают ряд и колонку</div>
+              <button class="shop-buy-btn" data-shop-buy="rocketBoost" data-cost="180" data-currency="coins">180 🪙</button>
+            </div>
+            <div class="shop-card">
+              <div class="shop-icon">➕5</div>
+              <div class="shop-name">+5 ходов</div>
+              <div class="shop-desc">На следующий уровень</div>
+              <button class="shop-buy-btn" data-shop-buy="moves" data-cost="200" data-currency="coins">200 🪙</button>
+            </div>
+            <div class="shop-card">
+              <div class="shop-icon">💎</div>
+              <div class="shop-name">+50 кристаллов</div>
+              <div class="shop-desc">Бонусный набор</div>
+              <button class="shop-buy-btn" data-shop-buy="gems50" data-cost="300" data-currency="coins">300 🪙</button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="shop-section">
-        <h3>Жизни и кристаллы 💎</h3>
-        <div class="shop-grid">
-          <div class="shop-card">
-            <div class="shop-icon">❤️</div>
-            <div class="shop-name">Полный запас</div>
-            <div class="shop-desc">5 из 5 жизней</div>
-            <button class="shop-buy-btn" data-shop-buy="lives" data-cost="10" data-currency="gems">10 💎</button>
-          </div>
-          <div class="shop-card">
-            <div class="shop-icon">💎</div>
-            <div class="shop-name">+50 кристаллов</div>
-            <div class="shop-desc">Бонусный набор</div>
-            <button class="shop-buy-btn" data-shop-buy="gems50" data-cost="300" data-currency="coins">300 🪙</button>
-          </div>
+
+      <div id="tabSkins" class="tab-content">
+        <div class="shop-section">
+          <h3>Скины фишек</h3>
+          <div class="shop-grid skins-grid" id="skinsGrid"></div>
         </div>
       </div>
+
+      <div id="tabFrames" class="tab-content">
+        <div class="shop-section">
+          <h3>Аватарки, рамки и звания</h3>
+          <div class="shop-grid skins-grid" id="framesGrid"></div>
+        </div>
+      </div>
+
       <button class="secondary-btn" data-close="modalShop">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- ===================== МОДАЛКА: ЕЖЕДНЕВНЫЕ ЗАДАНИЯ ===================== -->
+  <div id="modalQuests" class="overlay hidden">
+    <div class="overlay-card wide-card">
+      <button class="modal-x" data-close="modalQuests">❌</button>
+      <h2>Ежедневные задания 🎁</h2>
+      <p class="subtitle">Обновляются каждый день</p>
+      <div id="questsList" class="quests-list"></div>
+      <button class="secondary-btn" data-close="modalQuests">Закрыть</button>
     </div>
   </div>
 
@@ -156,13 +197,27 @@
     <div class="overlay-card">
       <button class="modal-x" data-close="modalWheel">❌</button>
       <h2>Колесо Фортуны</h2>
-      <p class="subtitle">Крути раз в день и получай награды</p>
+      <p class="subtitle">Крути раз в 24 часа и получай награды</p>
       <div class="wheel-outer">
         <div class="wheel-pointer">▼</div>
         <div id="wheelDial" class="wheel-dial"></div>
       </div>
       <button class="primary-btn" id="btnSpinWheel">Крутить</button>
       <button class="secondary-btn" data-close="modalWheel">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- ===================== МОДАЛКА: АДМИН-ПАНЕЛЬ ===================== -->
+  <div id="modalAdmin" class="overlay hidden">
+    <div class="overlay-card">
+      <button class="modal-x" data-close="modalAdmin">❌</button>
+      <h2>⚙️ Админ-панель</h2>
+      <button class="primary-btn" id="btnAdminCoins">+10 000 Монет 🪙</button>
+      <button class="primary-btn" id="btnAdminGems">+100 Кристаллов 💎</button>
+      <button class="primary-btn" id="btnAdminUnlock">Открыть все уровни 🔓</button>
+      <button class="primary-btn" id="btnAdminInfLives">Бесконечные жизни ❤️</button>
+      <button class="secondary-btn" id="btnAdminReset">Сбросить прогресс 🔄</button>
+      <button class="secondary-btn" data-close="modalAdmin">Закрыть</button>
     </div>
   </div>
 
