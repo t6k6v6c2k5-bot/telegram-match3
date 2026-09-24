@@ -287,7 +287,10 @@
     if (id === 'modalWheel') refreshWheelState();
     if (id === 'modalShop') { renderSkinsTab(); renderFramesTab(); }
     if (id === 'modalQuests') { ensureDailyQuests(); renderQuests(); }
-    if (id === 'modalAdminPro') { renderAdminStats(); renderAdminGlobalSettings(); document.getElementById('broadcastProgressWrap').classList.add('hidden'); }
+    if (id === 'modalAdminPro') {
+      renderAdminStats(); renderAdminGlobalSettings(); loadAllPlayersList();
+      document.getElementById('broadcastProgressWrap').classList.add('hidden');
+    }
     renderResources();
   }
   function closeModal(id) { const el = document.getElementById(id); if (el) el.classList.add('hidden'); }
@@ -765,7 +768,37 @@
     return false;
   }
 
+  /**
+   * Синхронизация со своим серверным профилем (data/players.json):
+   * 1) отдаёт актуальные coins/gems/lives/уровень на сервер, чтобы админка видела реальные
+   *    данные, а не 0/null (главный баг, который чинит этот эндпоинт-вызов);
+   * 2) проверяет бан — если сервер вернул 403, показываем блокирующий экран.
+   * Вызывается при старте и после каждой победы/поражения на уровне.
+   */
+  async function syncProgressWithServer() {
+    if (playerId === 'guest') return;
+    const { ok, status, data } = await apiFetch('/api/save-progress', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        telegram_id: playerId,
+        name: telegramUser ? telegramUser.first_name : undefined,
+        username: telegramUser ? telegramUser.username : undefined,
+        level: state.unlockedLevel,
+        score: state.stats.bestScore || 0,
+        coins: state.coins,
+        gems: state.gems,
+        lives: state.infiniteLives ? 5 : state.lives
+      })
+    });
+    if (!ok && status === 403) {
+      document.getElementById('bannedScreen').classList.remove('hidden');
+      return;
+    }
+    if (ok && data && data.success) document.getElementById('bannedScreen').classList.add('hidden');
+  }
+
   document.getElementById('floatingAdminBtn').addEventListener('click', () => { haptic('light'); openModal('modalAdminPro'); });
+
 
   /* ---------- Вкладка «Статистика» + рассылка ---------- */
   async function renderAdminStats() {
@@ -815,7 +848,7 @@
     }, 700);
   }
 
-  /* ---------- Вкладка «Поиск игрока» ---------- */
+  /* ---------- Вкладка «Поиск игрока» + список всех игроков ---------- */
   document.getElementById('btnAdminSearch').addEventListener('click', performAdminSearch);
   document.getElementById('adminSearchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') performAdminSearch(); });
 
@@ -830,21 +863,57 @@
     data.results.forEach((p) => {
       const item = document.createElement('div');
       item.className = 'admin-result-item';
-      item.innerHTML = `<b>${p.name}${p.username ? ' (@' + p.username + ')' : ''}</b>ID: ${p.id} · ур. ${p.bestLevel || 0} · ${p.coins || 0}🪙${p.banned ? ' · 🚫 забанен' : ''}`;
-      item.addEventListener('click', () => loadAdminPlayerDetail(p.id));
+      item.innerHTML = `<b>${p.name}${p.username ? ' (@' + p.username + ')' : ''}</b>ID: ${p.id} · ур. ${p.bestLevel} · ${p.coins}🪙${p.isBanned ? ' · 🚫 забанен' : ''}`;
+      item.addEventListener('click', () => selectAdminPlayer(p.id));
       list.appendChild(item);
     });
   }
 
+  /** «Все зарегистрированные игроки» — кликабельный скролл-список из data/players.json. */
+  async function loadAllPlayersList() {
+    const wrap = document.getElementById('adminAllPlayersList');
+    wrap.innerHTML = '<div class="admin-small-label">Загрузка...</div>';
+    const params = new URLSearchParams(adminAuthParams());
+    const { ok, data } = await apiFetch('/api/admin/players?' + params.toString());
+    if (!ok || !data || !data.success) { wrap.innerHTML = '<div class="admin-small-label">Не удалось загрузить список</div>'; return; }
+    if (!data.players.length) { wrap.innerHTML = '<div class="admin-small-label">Пока нет ни одного игрока</div>'; return; }
+    wrap.innerHTML = '';
+    data.players.forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'admin-player-row' + (String(p.id) === String(adminSelectedPlayerId) ? ' selected' : '');
+      const initial = (p.name || '?').charAt(0).toUpperCase();
+      row.innerHTML = `
+        <div class="admin-player-avatar">${initial}</div>
+        <div class="admin-player-row-info">
+          <b>${p.name}${p.username ? ' <span class="admin-row-username">@' + p.username + '</span>' : ''}</b>
+          <span class="admin-row-sub">🪙 ${p.coins} · ур. ${p.bestLevel}</span>
+        </div>
+        <div class="admin-row-status ${p.isBanned ? 'banned' : 'active'}">${p.isBanned ? '🚫 Забанен' : '✅ Активен'}</div>
+      `;
+      row.addEventListener('click', () => {
+        document.getElementById('adminSearchInput').value = p.id;
+        selectAdminPlayer(p.id);
+        haptic('light'); Sound.select();
+      });
+      wrap.appendChild(row);
+    });
+  }
+
   let adminSelectedPlayerId = null;
-  async function loadAdminPlayerDetail(id) {
+  async function selectAdminPlayer(id) {
     const params = new URLSearchParams(adminAuthParams());
     const { ok, data } = await apiFetch(`/api/admin/player/${id}?` + params.toString());
     if (!ok || !data || !data.success) { showToast('Не удалось загрузить игрока'); return; }
-    adminSelectedPlayerId = id;
+    adminSelectedPlayerId = String(id);
     renderAdminPlayerDetail(data.player);
+    loadAllPlayersList(); // подсветить выбранную строку
   }
 
+  /**
+   * Карточка игрока: текущие значения (coins||0, gems||0, lives||5, bestLevel||1 — сервер уже
+   * гарантирует эти дефолты через normalizePlayer) ЗАШИТЫ в поля ввода как value=, поэтому
+   * админ сразу видит актуальные цифры, а не 0/null/"-".
+   */
   function renderAdminPlayerDetail(p) {
     const box = document.getElementById('adminPlayerDetail');
     box.classList.remove('hidden');
@@ -852,70 +921,65 @@
     box.innerHTML = `
       <div class="admin-detail-row"><span>Имя</span><span>${p.name}${p.username ? ' (@' + p.username + ')' : ''}</span></div>
       <div class="admin-detail-row"><span>ID</span><span>${p.id}</span></div>
-      <div class="admin-detail-row"><span>🪙 Монеты</span><span>${p.coins || 0}</span></div>
-      <div class="admin-detail-row"><span>💎 Кристаллы</span><span>${p.gems || 0}</span></div>
-      <div class="admin-detail-row"><span>❤️ Жизни</span><span>${typeof p.lives === 'number' ? p.lives : '—'}</span></div>
-      <div class="admin-detail-row"><span>🚩 Макс. уровень</span><span>${p.bestLevel || 0}</span></div>
       <div class="admin-detail-row"><span>📅 Регистрация</span><span>${created}</span></div>
-      <div class="admin-detail-row"><span>Статус</span><span>${p.banned ? '🚫 Забанен' : '✅ Активен'}</span></div>
+      <div class="admin-detail-row"><span>Статус</span><span>${p.isBanned ? '🚫 Забанен' : '✅ Активен'}</span></div>
+
+      <div class="admin-field-row">
+        <label>🪙 Монеты</label>
+        <input id="fieldCoins" type="number" value="${p.coins}" />
+        <button id="btnAddCoins" title="Прибавить введённое число (можно отрицательное)">➕ Добавить</button>
+        <button id="btnSetCoins" title="Установить ровно это значение">= Установить</button>
+      </div>
+      <div class="admin-field-row">
+        <label>💎 Кристаллы</label>
+        <input id="fieldGems" type="number" value="${p.gems}" />
+        <button id="btnAddGems">➕ Добавить</button>
+        <button id="btnSetGems">= Установить</button>
+      </div>
+      <div class="admin-field-row">
+        <label>🚩 Уровень</label>
+        <input id="fieldLevel" type="number" min="1" max="99" value="${p.bestLevel}" />
+        <button id="btnSetLevel" class="wide">Установить уровень</button>
+      </div>
+
       <div class="admin-actions-grid">
-        <input id="adjCoins" type="number" placeholder="± Монеты (например -50 или 200)" />
-        <button id="btnAdjCoins">Применить 🪙</button>
-        <input id="adjGems" type="number" placeholder="± Кристаллы" />
-        <button id="btnAdjGems">Применить 💎</button>
-        <input id="setLevelInput" type="number" min="0" max="30" placeholder="Новый уровень (1-30+)" />
-        <button id="btnSetLevel">Установить уровень</button>
-        <button id="btnRestoreLives" class="positive">Восстановить жизни ❤️</button>
-        <button id="btnBlockLives" class="danger">Заблокировать жизни</button>
-        <button id="btnToggleBan" class="${p.banned ? 'positive' : 'danger'}">${p.banned ? 'Разбанить ✅' : 'Забанить 🚫'}</button>
+        <button id="btnRestoreLives" class="positive">Восстановить жизни ❤️ (5)</button>
+        <button id="btnBlockLives" class="danger">Заблокировать жизни (0)</button>
+        <button id="btnToggleBan" class="${p.isBanned ? 'positive' : 'danger'}">${p.isBanned ? 'Разбанить ✅' : 'Забанить 🚫'}</button>
         <button id="btnResetPlayer" class="danger">Сбросить прогресс 🔄</button>
       </div>
     `;
-    document.getElementById('btnAdjCoins').addEventListener('click', () => adminAdjust('coinsDelta', 'adjCoins'));
-    document.getElementById('btnAdjGems').addEventListener('click', () => adminAdjust('gemsDelta', 'adjGems'));
-    document.getElementById('btnSetLevel').addEventListener('click', adminSetLevel);
-    document.getElementById('btnRestoreLives').addEventListener('click', () => adminLivesAction('restore'));
-    document.getElementById('btnBlockLives').addEventListener('click', () => adminLivesAction('block'));
-    document.getElementById('btnToggleBan').addEventListener('click', () => adminBanAction(!p.banned));
-    document.getElementById('btnResetPlayer').addEventListener('click', adminResetPlayer);
-  }
-
-  async function adminPost(url, extra) {
-    return apiFetch(url, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign(adminAuthParams(), { target_id: adminSelectedPlayerId }, extra || {}))
+    document.getElementById('btnAddCoins').addEventListener('click', () => adminAction('update_coins', { mode: 'add', value: numVal('fieldCoins') }));
+    document.getElementById('btnSetCoins').addEventListener('click', () => adminAction('update_coins', { mode: 'set', value: numVal('fieldCoins') }));
+    document.getElementById('btnAddGems').addEventListener('click', () => adminAction('update_gems', { mode: 'add', value: numVal('fieldGems') }));
+    document.getElementById('btnSetGems').addEventListener('click', () => adminAction('update_gems', { mode: 'set', value: numVal('fieldGems') }));
+    document.getElementById('btnSetLevel').addEventListener('click', () => adminAction('set_level', { level: numVal('fieldLevel') }));
+    document.getElementById('btnRestoreLives').addEventListener('click', () => adminAction('set_lives', { mode: 'restore' }));
+    document.getElementById('btnBlockLives').addEventListener('click', () => adminAction('set_lives', { mode: 'block' }));
+    document.getElementById('btnToggleBan').addEventListener('click', () => adminAction('toggle_ban', { isBanned: !p.isBanned }));
+    document.getElementById('btnResetPlayer').addEventListener('click', () => {
+      if (!confirm('Точно сбросить прогресс этого игрока?')) return;
+      adminAction('reset_progress', {});
     });
   }
 
-  async function adminAdjust(field, inputId) {
-    const val = parseInt(document.getElementById(inputId).value, 10);
-    if (!val) { showToast('Введите число'); return; }
-    const { ok, data } = await adminPost('/api/admin/player/adjust', { [field]: val });
-    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Готово'); Sound.click(); }
-    else showToast('Ошибка');
-  }
-  async function adminSetLevel() {
-    const level = parseInt(document.getElementById('setLevelInput').value, 10);
-    if (!level && level !== 0) { showToast('Введите уровень'); return; }
-    const { ok, data } = await adminPost('/api/admin/player/set-level', { level });
-    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Уровень изменён'); Sound.click(); }
-    else showToast('Ошибка');
-  }
-  async function adminLivesAction(action) {
-    const { ok, data } = await adminPost('/api/admin/player/lives', { action });
-    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Готово'); Sound.click(); }
-    else showToast('Ошибка');
-  }
-  async function adminBanAction(banned) {
-    const { ok, data } = await adminPost('/api/admin/player/ban', { banned });
-    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast(banned ? 'Игрок забанен' : 'Игрок разбанен'); Sound.click(); }
-    else showToast('Ошибка');
-  }
-  async function adminResetPlayer() {
-    if (!confirm('Точно сбросить прогресс этого игрока?')) return;
-    const { ok, data } = await adminPost('/api/admin/player/reset', {});
-    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Прогресс игрока сброшен'); Sound.click(); }
-    else showToast('Ошибка');
+  function numVal(id) { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? 0 : v; }
+
+  /** Единый вызов POST /api/admin/action — обновляет карточку и общий список МГНОВЕННО. */
+  async function adminAction(action, payload) {
+    const { ok, data } = await apiFetch('/api/admin/action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign(adminAuthParams(), { target_id: adminSelectedPlayerId, action }, payload))
+    });
+    if (ok && data && data.success) {
+      renderAdminPlayerDetail(data.player);
+      loadAllPlayersList();
+      showToast('Данные игрока успешно обновлены!');
+      Sound.win(); haptic('success');
+    } else {
+      showToast((data && data.error) || 'Ошибка применения действия');
+      Sound.error(); haptic('error');
+    }
   }
 
   /* ---------- Вкладка «Глобальные настройки» ---------- */
@@ -948,8 +1012,8 @@
   });
 
   /* ---------- Быстрые читы (применяются к своему локальному аккаунту) ---------- */
-  document.getElementById('btnAdminCoins').addEventListener('click', () => { addCoins(10000); showToast('+10 000 монет'); Sound.win(); });
-  document.getElementById('btnAdminGems').addEventListener('click', () => { addGems(500); showToast('+500 кристаллов'); Sound.win(); });
+  document.getElementById('btnAdminCoins').addEventListener('click', () => { addCoins(10000); showToast('+10 000 монет'); Sound.win(); syncProgressWithServer(); });
+  document.getElementById('btnAdminGems').addEventListener('click', () => { addGems(500); showToast('+500 кристаллов'); Sound.win(); syncProgressWithServer(); });
   document.getElementById('btnAdminUnlock').addEventListener('click', () => {
     state.unlockedLevel = LEVEL_COUNT; saveState(); showToast('Все уровни открыты 🔓'); Sound.win();
   });
@@ -1964,6 +2028,7 @@
     saveState();
     Sound.win(); haptic('success');
     showResultModal(true, stars, coinsAward);
+    syncProgressWithServer(); // подтягиваем свежие данные в админку сразу после победы
   }
 
   function loseLevel() {
@@ -1972,6 +2037,7 @@
     saveState();
     Sound.lose(); haptic('error');
     showResultModal(false, 0, 0);
+    syncProgressWithServer();
   }
 
   function showResultModal(win, stars, coins) {
@@ -2069,6 +2135,7 @@
     renderBoosterCounts();
     await checkAdminAccess();
     const blocked = await checkMaintenanceAndSettings();
+    await syncProgressWithServer(); // пушим прогресс на сервер + проверяем бан
     if (!blocked) showScreen('screenMenu');
   }
   boot();
