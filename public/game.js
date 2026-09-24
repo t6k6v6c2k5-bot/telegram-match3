@@ -10,9 +10,6 @@
      ============================================================ */
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 
-  // ЗАМЕНИТЕ на свой реальный Telegram ID, чтобы получить доступ к админ-панели
-  const ADMIN_IDS = [123456789];
-
   function initTelegram() {
     if (!tg) return;
     try {
@@ -49,7 +46,12 @@
   }
   const telegramUser = getTelegramUser();
   const playerId = (telegramUser && telegramUser.id) ? telegramUser.id : 'guest';
-  const isAdmin = !!(telegramUser && ADMIN_IDS.includes(telegramUser.id));
+  // Статус админа подтверждается СЕРВЕРОМ (по process.env.ADMIN_ID), а не в клиентском коде —
+  // см. checkAdminAccess() и /api/admin/* ниже.
+  let isAdminConfirmed = false;
+  function adminAuthParams() {
+    return { telegram_id: playerId, init_data: (tg && tg.initData) ? tg.initData : '' };
+  }
 
   function renderPlayerBadge() {
     const nameEl = document.getElementById('playerName');
@@ -75,7 +77,6 @@
     avatarEl.className = 'player-avatar' + (state.equippedFrame && state.equippedFrame !== 'none' ? ' frame-' + state.equippedFrame : '');
     const title = TITLES[state.equippedTitle];
     titleEl.textContent = (title && title.id !== 'none') ? (title.icon + ' ' + title.name) : '';
-    document.getElementById('btnAdmin').classList.toggle('hidden', !isAdmin);
   }
 
   /* ============================================================
@@ -254,6 +255,7 @@
     if (id === 'modalWheel') refreshWheelState();
     if (id === 'modalShop') { renderSkinsTab(); renderFramesTab(); }
     if (id === 'modalQuests') { ensureDailyQuests(); renderQuests(); }
+    if (id === 'modalAdminPro') { renderAdminStats(); renderAdminGlobalSettings(); document.getElementById('broadcastProgressWrap').classList.add('hidden'); }
     renderResources();
   }
   function closeModal(id) { const el = document.getElementById(id); if (el) el.classList.add('hidden'); }
@@ -694,11 +696,228 @@
   });
 
   /* ============================================================
-     12. АДМИН-ПАНЕЛЬ
+     12. ПРОДВИНУТАЯ АДМИН-ПАНЕЛЬ (сервер + клиентские читы)
      ============================================================ */
-  document.getElementById('btnAdmin').addEventListener('click', () => { haptic('light'); openModal('modalAdmin'); });
+
+  // API_BASE пуст — фронтенд и бэкенд раздаются с одного origin (Express static)
+  async function apiFetch(url, opts) {
+    const res = await fetch(url, opts);
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* noop */ }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  /** Проверяем права администратора у СЕРВЕРА (источник истины — ADMIN_ID на бэкенде). */
+  async function checkAdminAccess() {
+    if (playerId === 'guest') return false;
+    const params = new URLSearchParams(adminAuthParams());
+    const { ok, data } = await apiFetch('/api/admin/stats?' + params.toString());
+    isAdminConfirmed = !!(ok && data && data.success);
+    document.getElementById('floatingAdminBtn').classList.toggle('hidden', !isAdminConfirmed);
+    return isAdminConfirmed;
+  }
+
+  /** Экран техработ: блокирует всех, кроме подтверждённого админа. */
+  let clientGameSettings = { maintenanceMode: false, doubleRewards: false };
+  async function checkMaintenanceAndSettings() {
+    const { ok, data } = await apiFetch('/api/game-settings');
+    if (ok && data && data.success) {
+      clientGameSettings.maintenanceMode = !!data.maintenanceMode;
+      clientGameSettings.doubleRewards = !!data.doubleRewards;
+    }
+    if (clientGameSettings.maintenanceMode && !isAdminConfirmed) {
+      document.getElementById('maintenanceScreen').classList.remove('hidden');
+      return true;
+    }
+    document.getElementById('maintenanceScreen').classList.add('hidden');
+    return false;
+  }
+
+  document.getElementById('floatingAdminBtn').addEventListener('click', () => { haptic('light'); openModal('modalAdminPro'); });
+
+  /* ---------- Вкладка «Статистика» + рассылка ---------- */
+  async function renderAdminStats() {
+    const box = document.getElementById('adminStatsBox');
+    box.textContent = 'Загрузка...';
+    const params = new URLSearchParams(adminAuthParams());
+    const { ok, data } = await apiFetch('/api/admin/stats?' + params.toString());
+    if (!ok || !data || !data.success) { box.textContent = 'Ошибка доступа к статистике.'; return; }
+    const s = data.stats;
+    let text = `👥 Всего игроков: ${s.totalUsers}\n🟢 Активны сегодня (DAU): ${s.dau}\n🪙 Всего монет в игре: ${s.totalCoins}\n💎 Всего кристаллов: ${s.totalGems}\n📈 Средний уровень: ${s.avgLevel}\n\n🏆 Топ-5 богатейших:\n`;
+    s.topRich.forEach((p, i) => { text += `${i + 1}. ${p.name} — ${p.coins}🪙 / ${p.gems}💎\n`; });
+    text += `\n🚀 Топ-5 по уровню:\n`;
+    s.topLevel.forEach((p, i) => { text += `${i + 1}. ${p.name} — ур. ${p.bestLevel}\n`; });
+    box.textContent = text;
+  }
+  document.getElementById('btnAdminRefreshStats').addEventListener('click', renderAdminStats);
+
+  let broadcastPollTimer = null;
+  document.getElementById('btnSendBroadcast').addEventListener('click', async () => {
+    const message = document.getElementById('broadcastText').value.trim();
+    const buttonText = document.getElementById('broadcastBtnText').value.trim();
+    if (!message) { showToast('Введите текст рассылки'); return; }
+    const { ok, data } = await apiFetch('/api/admin/broadcast', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign(adminAuthParams(), { message, buttonText, buttonUrl: `https://t.me/game_crashfr_bot/Play` }))
+    });
+    if (!ok || !data || !data.success) { showToast('Не удалось запустить рассылку'); return; }
+    document.getElementById('broadcastProgressWrap').classList.remove('hidden');
+    pollBroadcastStatus();
+  });
+
+  function pollBroadcastStatus() {
+    clearInterval(broadcastPollTimer);
+    broadcastPollTimer = setInterval(async () => {
+      const params = new URLSearchParams(adminAuthParams());
+      const { ok, data } = await apiFetch('/api/admin/broadcast/status?' + params.toString());
+      if (!ok || !data) return;
+      const done = (data.sent || 0) + (data.failed || 0);
+      const total = data.total || 1;
+      const pct = Math.round((done / total) * 100);
+      document.getElementById('broadcastProgressFill').style.width = pct + '%';
+      document.getElementById('broadcastProgressLabel').textContent = `${done} / ${total} (✅ ${data.sent} · ❌ ${data.failed})`;
+      if (!data.running && done > 0) {
+        clearInterval(broadcastPollTimer);
+        showToast('Рассылка завершена ✅');
+      }
+    }, 700);
+  }
+
+  /* ---------- Вкладка «Поиск игрока» ---------- */
+  document.getElementById('btnAdminSearch').addEventListener('click', performAdminSearch);
+  document.getElementById('adminSearchInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') performAdminSearch(); });
+
+  async function performAdminSearch() {
+    const q = document.getElementById('adminSearchInput').value.trim();
+    const list = document.getElementById('adminSearchResults');
+    if (!q) { list.innerHTML = ''; return; }
+    const params = new URLSearchParams(Object.assign(adminAuthParams(), { q }));
+    const { ok, data } = await apiFetch('/api/admin/search?' + params.toString());
+    list.innerHTML = '';
+    if (!ok || !data || !data.success || !data.results.length) { list.innerHTML = '<div class="admin-small-label">Ничего не найдено</div>'; return; }
+    data.results.forEach((p) => {
+      const item = document.createElement('div');
+      item.className = 'admin-result-item';
+      item.innerHTML = `<b>${p.name}${p.username ? ' (@' + p.username + ')' : ''}</b>ID: ${p.id} · ур. ${p.bestLevel || 0} · ${p.coins || 0}🪙${p.banned ? ' · 🚫 забанен' : ''}`;
+      item.addEventListener('click', () => loadAdminPlayerDetail(p.id));
+      list.appendChild(item);
+    });
+  }
+
+  let adminSelectedPlayerId = null;
+  async function loadAdminPlayerDetail(id) {
+    const params = new URLSearchParams(adminAuthParams());
+    const { ok, data } = await apiFetch(`/api/admin/player/${id}?` + params.toString());
+    if (!ok || !data || !data.success) { showToast('Не удалось загрузить игрока'); return; }
+    adminSelectedPlayerId = id;
+    renderAdminPlayerDetail(data.player);
+  }
+
+  function renderAdminPlayerDetail(p) {
+    const box = document.getElementById('adminPlayerDetail');
+    box.classList.remove('hidden');
+    const created = p.createdAt ? new Date(p.createdAt).toLocaleDateString('ru-RU') : '—';
+    box.innerHTML = `
+      <div class="admin-detail-row"><span>Имя</span><span>${p.name}${p.username ? ' (@' + p.username + ')' : ''}</span></div>
+      <div class="admin-detail-row"><span>ID</span><span>${p.id}</span></div>
+      <div class="admin-detail-row"><span>🪙 Монеты</span><span>${p.coins || 0}</span></div>
+      <div class="admin-detail-row"><span>💎 Кристаллы</span><span>${p.gems || 0}</span></div>
+      <div class="admin-detail-row"><span>❤️ Жизни</span><span>${typeof p.lives === 'number' ? p.lives : '—'}</span></div>
+      <div class="admin-detail-row"><span>🚩 Макс. уровень</span><span>${p.bestLevel || 0}</span></div>
+      <div class="admin-detail-row"><span>📅 Регистрация</span><span>${created}</span></div>
+      <div class="admin-detail-row"><span>Статус</span><span>${p.banned ? '🚫 Забанен' : '✅ Активен'}</span></div>
+      <div class="admin-actions-grid">
+        <input id="adjCoins" type="number" placeholder="± Монеты (например -50 или 200)" />
+        <button id="btnAdjCoins">Применить 🪙</button>
+        <input id="adjGems" type="number" placeholder="± Кристаллы" />
+        <button id="btnAdjGems">Применить 💎</button>
+        <input id="setLevelInput" type="number" min="0" max="30" placeholder="Новый уровень (1-30+)" />
+        <button id="btnSetLevel">Установить уровень</button>
+        <button id="btnRestoreLives" class="positive">Восстановить жизни ❤️</button>
+        <button id="btnBlockLives" class="danger">Заблокировать жизни</button>
+        <button id="btnToggleBan" class="${p.banned ? 'positive' : 'danger'}">${p.banned ? 'Разбанить ✅' : 'Забанить 🚫'}</button>
+        <button id="btnResetPlayer" class="danger">Сбросить прогресс 🔄</button>
+      </div>
+    `;
+    document.getElementById('btnAdjCoins').addEventListener('click', () => adminAdjust('coinsDelta', 'adjCoins'));
+    document.getElementById('btnAdjGems').addEventListener('click', () => adminAdjust('gemsDelta', 'adjGems'));
+    document.getElementById('btnSetLevel').addEventListener('click', adminSetLevel);
+    document.getElementById('btnRestoreLives').addEventListener('click', () => adminLivesAction('restore'));
+    document.getElementById('btnBlockLives').addEventListener('click', () => adminLivesAction('block'));
+    document.getElementById('btnToggleBan').addEventListener('click', () => adminBanAction(!p.banned));
+    document.getElementById('btnResetPlayer').addEventListener('click', adminResetPlayer);
+  }
+
+  async function adminPost(url, extra) {
+    return apiFetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign(adminAuthParams(), { target_id: adminSelectedPlayerId }, extra || {}))
+    });
+  }
+
+  async function adminAdjust(field, inputId) {
+    const val = parseInt(document.getElementById(inputId).value, 10);
+    if (!val) { showToast('Введите число'); return; }
+    const { ok, data } = await adminPost('/api/admin/player/adjust', { [field]: val });
+    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Готово'); Sound.click(); }
+    else showToast('Ошибка');
+  }
+  async function adminSetLevel() {
+    const level = parseInt(document.getElementById('setLevelInput').value, 10);
+    if (!level && level !== 0) { showToast('Введите уровень'); return; }
+    const { ok, data } = await adminPost('/api/admin/player/set-level', { level });
+    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Уровень изменён'); Sound.click(); }
+    else showToast('Ошибка');
+  }
+  async function adminLivesAction(action) {
+    const { ok, data } = await adminPost('/api/admin/player/lives', { action });
+    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Готово'); Sound.click(); }
+    else showToast('Ошибка');
+  }
+  async function adminBanAction(banned) {
+    const { ok, data } = await adminPost('/api/admin/player/ban', { banned });
+    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast(banned ? 'Игрок забанен' : 'Игрок разбанен'); Sound.click(); }
+    else showToast('Ошибка');
+  }
+  async function adminResetPlayer() {
+    if (!confirm('Точно сбросить прогресс этого игрока?')) return;
+    const { ok, data } = await adminPost('/api/admin/player/reset', {});
+    if (ok && data && data.success) { renderAdminPlayerDetail(data.player); showToast('Прогресс игрока сброшен'); Sound.click(); }
+    else showToast('Ошибка');
+  }
+
+  /* ---------- Вкладка «Глобальные настройки» ---------- */
+  async function renderAdminGlobalSettings() {
+    const params = new URLSearchParams(adminAuthParams());
+    const { ok, data } = await apiFetch('/api/admin/settings?' + params.toString());
+    if (!ok || !data || !data.success) return;
+    clientGameSettings.maintenanceMode = !!data.settings.maintenanceMode;
+    clientGameSettings.doubleRewards = !!data.settings.doubleRewards;
+    const mBtn = document.getElementById('btnToggleMaintenance');
+    const dBtn = document.getElementById('btnToggleDouble');
+    mBtn.textContent = clientGameSettings.maintenanceMode ? 'Вкл ✅' : 'Выкл';
+    mBtn.classList.toggle('on', clientGameSettings.maintenanceMode);
+    dBtn.textContent = clientGameSettings.doubleRewards ? 'Вкл ✅' : 'Выкл';
+    dBtn.classList.toggle('on', clientGameSettings.doubleRewards);
+  }
+  document.getElementById('btnToggleMaintenance').addEventListener('click', async () => {
+    const { ok, data } = await apiFetch('/api/admin/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign(adminAuthParams(), { maintenanceMode: !clientGameSettings.maintenanceMode }))
+    });
+    if (ok && data && data.success) { renderAdminGlobalSettings(); showToast('Настройка обновлена'); }
+  });
+  document.getElementById('btnToggleDouble').addEventListener('click', async () => {
+    const { ok, data } = await apiFetch('/api/admin/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign(adminAuthParams(), { doubleRewards: !clientGameSettings.doubleRewards }))
+    });
+    if (ok && data && data.success) { renderAdminGlobalSettings(); showToast('Настройка обновлена'); }
+  });
+
+  /* ---------- Быстрые читы (применяются к своему локальному аккаунту) ---------- */
   document.getElementById('btnAdminCoins').addEventListener('click', () => { addCoins(10000); showToast('+10 000 монет'); Sound.win(); });
-  document.getElementById('btnAdminGems').addEventListener('click', () => { addGems(100); showToast('+100 кристаллов'); Sound.win(); });
+  document.getElementById('btnAdminGems').addEventListener('click', () => { addGems(500); showToast('+500 кристаллов'); Sound.win(); });
   document.getElementById('btnAdminUnlock').addEventListener('click', () => {
     state.unlockedLevel = LEVEL_COUNT; saveState(); showToast('Все уровни открыты 🔓'); Sound.win();
   });
@@ -713,7 +932,7 @@
     saveState();
     applyEquippedSkin();
     renderResources(); renderPlayerBadge();
-    closeModal('modalAdmin');
+    closeModal('modalAdminPro');
     showScreen('screenMenu');
     showToast('Прогресс сброшен');
   });
@@ -1706,7 +1925,8 @@
     state.unlockedLevel = Math.max(state.unlockedLevel, Math.min(LEVEL_COUNT, currentLevel.level + 1));
     state.stats.wins += 1;
     incrementQuest('levels', 1);
-    const coinsAward = stars * 40 + Math.floor(currentLevel.score / 50);
+    let coinsAward = stars * 40 + Math.floor(currentLevel.score / 50);
+    if (clientGameSettings.doubleRewards) coinsAward *= 2;
     addCoins(coinsAward);
     submitScoreToLeaderboard(currentLevel.score);
     saveState();
@@ -1809,11 +2029,16 @@
   /* ============================================================
      15. СТАРТ ПРИЛОЖЕНИЯ
      ============================================================ */
-  initTelegram();
-  applyEquippedSkin();
-  renderPlayerBadge();
-  showScreen('screenMenu');
-  renderResources();
-  renderBoosterCounts();
+  async function boot() {
+    initTelegram();
+    applyEquippedSkin();
+    renderPlayerBadge();
+    renderResources();
+    renderBoosterCounts();
+    await checkAdminAccess();
+    const blocked = await checkMaintenanceAndSettings();
+    if (!blocked) showScreen('screenMenu');
+  }
+  boot();
 
 })();
