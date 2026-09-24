@@ -1,5 +1,5 @@
 /* ==========================================================
-   FRUIT BLAST — Match-3 Telegram Mini App
+   FRUIT BLITZ — Match-3 Telegram Mini App
    Чистый Vanilla JS. Один файл: состояние, звук, экраны, игра.
    ========================================================== */
 (function () {
@@ -9,6 +9,9 @@
      0. TELEGRAM WEBAPP + ПРОФИЛЬ ИГРОКА
      ============================================================ */
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+
+  // ЗАМЕНИТЕ на свой реальный Telegram ID, чтобы получить доступ к админ-панели
+  const ADMIN_IDS = [123456789];
 
   function initTelegram() {
     if (!tg) return;
@@ -41,35 +44,38 @@
   }
 
   function getTelegramUser() {
-    try {
-      if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user;
-    } catch (e) { /* noop */ }
+    try { if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user; } catch (e) { /* noop */ }
     return null;
   }
   const telegramUser = getTelegramUser();
   const playerId = (telegramUser && telegramUser.id) ? telegramUser.id : 'guest';
+  const isAdmin = !!(telegramUser && ADMIN_IDS.includes(telegramUser.id));
 
   function renderPlayerBadge() {
     const nameEl = document.getElementById('playerName');
     const avatarEl = document.getElementById('playerAvatar');
+    const titleEl = document.getElementById('playerTitle');
     if (!nameEl || !avatarEl) return;
+    let displayName = 'Гость';
     if (telegramUser) {
       const full = (telegramUser.first_name || '') + (telegramUser.last_name ? ' ' + telegramUser.last_name : '');
-      const displayName = full.trim() || ('@' + (telegramUser.username || 'player'));
-      nameEl.textContent = displayName;
+      displayName = full.trim() || ('@' + (telegramUser.username || 'player'));
       if (telegramUser.photo_url) {
         avatarEl.innerHTML = '';
         const img = document.createElement('img');
-        img.src = telegramUser.photo_url;
-        img.alt = 'avatar';
+        img.src = telegramUser.photo_url; img.alt = 'avatar';
         avatarEl.appendChild(img);
       } else {
         avatarEl.textContent = displayName.charAt(0).toUpperCase();
       }
     } else {
-      nameEl.textContent = 'Гость';
       avatarEl.textContent = '🙂';
     }
+    nameEl.textContent = displayName;
+    avatarEl.className = 'player-avatar' + (state.equippedFrame && state.equippedFrame !== 'none' ? ' frame-' + state.equippedFrame : '');
+    const title = TITLES[state.equippedTitle];
+    titleEl.textContent = (title && title.id !== 'none') ? (title.icon + ' ' + title.name) : '';
+    document.getElementById('btnAdmin').classList.toggle('hidden', !isAdmin);
   }
 
   /* ============================================================
@@ -130,19 +136,14 @@
     pop() { tone(880, 0.12, 'triangle', 0.22, 0, 1400); },
     matchN(n) {
       const base = 520;
-      for (let i = 0; i < Math.min(n, 6); i++) {
-        tone(base * Math.pow(1.12, i), 0.14, 'triangle', 0.18, i * 0.03, base * Math.pow(1.12, i) * 1.5);
-      }
+      for (let i = 0; i < Math.min(n, 6); i++) tone(base * Math.pow(1.12, i), 0.14, 'triangle', 0.18, i * 0.03, base * Math.pow(1.12, i) * 1.5);
     },
     combo(level) {
       const base = 420 * Math.pow(1.18, Math.min(level, 8));
       tone(base, 0.16, 'sawtooth', 0.16, 0, base * 1.8);
       tone(base * 1.5, 0.16, 'sawtooth', 0.1, 0.05, base * 2.2);
     },
-    explosion() {
-      noiseBurst(0.35, 0.35, 0, 900);
-      tone(90, 0.32, 'sine', 0.4, 0, 40);
-    },
+    explosion() { noiseBurst(0.35, 0.35, 0, 900); tone(90, 0.32, 'sine', 0.4, 0, 40); },
     booster() { tone(300, 0.22, 'square', 0.18, 0, 900); },
     win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, 'triangle', 0.22, i * 0.12)); },
     lose() { [400, 340, 260].forEach((f, i) => tone(f, 0.32, 'sawtooth', 0.18, i * 0.14)); },
@@ -150,9 +151,31 @@
   };
 
   /* ============================================================
-     2. СОСТОЯНИЕ / СОХРАНЕНИЕ (привязано к ID игрока)
+     2. КОСМЕТИКА: СКИНЫ, РАМКИ, ЗВАНИЯ
      ============================================================ */
-  const SAVE_KEY = `match3_player_${playerId}`;
+  const SKINS = {
+    classic: { id: 'classic', name: 'Классика', emojis: ['🍎', '🍌', '🍓', '🍇', '🍊', '🫐'], cost: 0, currency: null },
+    neon: { id: 'neon', name: 'Неоновые кубы', emojis: ['🟦', '🟨', '🟥', '🟩', '🟪', '⬜'], cost: 500, currency: 'coins' },
+    candy: { id: 'candy', name: 'Сладости', emojis: ['🍬', '🍭', '🍩', '🍪', '🧁', '🍫'], cost: 1000, currency: 'coins' },
+    cosmic: { id: 'cosmic', name: 'Космос', emojis: ['💎', '🔮', '⭐', '🌟', '☄️', '🪐'], cost: 2000, currency: 'coins' }
+  };
+
+  const FRAMES = {
+    none: { id: 'none', name: 'Без рамки', icon: '⬜', cost: 0, currency: null },
+    gold: { id: 'gold', name: 'Золотая рамка', icon: '✨', cost: 15, currency: 'gems' },
+    neon: { id: 'neon', name: 'Неоновая рамка', icon: '⚡', cost: 30, currency: 'gems' }
+  };
+
+  const TITLES = {
+    none: { id: 'none', name: 'Без звания', icon: '', cost: 0, currency: null },
+    baron: { id: 'baron', name: 'Фруктовый Барон', icon: '👑', cost: 20, currency: 'gems' },
+    master: { id: 'master', name: 'Мастер Блитца', icon: '👑', cost: 25, currency: 'gems' }
+  };
+
+  /* ============================================================
+     3. СОСТОЯНИЕ / СОХРАНЕНИЕ (привязано к ID игрока)
+     ============================================================ */
+  const SAVE_KEY = `fruit_blitz_progress_${playerId}`;
   const MAX_LIVES = 5;
   const LIFE_REGEN_MS = 15 * 60 * 1000;
 
@@ -162,12 +185,20 @@
       gems: 25,
       lives: MAX_LIVES,
       nextLifeAt: null,
+      infiniteLives: false,
       sound: true,
       unlockedLevel: 1,
       levelStars: {},
       boosters: { hammer: 3, shuffle: 2, rocketBoost: 2 },
+      ownedSkins: { classic: true },
+      equippedSkin: 'classic',
+      ownedFrames: { none: true },
+      equippedFrame: 'none',
+      ownedTitles: { none: true },
+      equippedTitle: 'none',
       lastWheelSpin: null,
       wheelStreak: 0,
+      dailyQuests: null,
       leaderboard: [
         { name: 'Алекс', score: 18400 },
         { name: 'Мария', score: 15200 },
@@ -188,7 +219,10 @@
       return Object.assign(defaultState(), parsed, {
         boosters: Object.assign({ hammer: 0, shuffle: 0, rocketBoost: 0 }, parsed.boosters),
         stats: Object.assign(defaultState().stats, parsed.stats),
-        levelStars: parsed.levelStars || {}
+        levelStars: parsed.levelStars || {},
+        ownedSkins: Object.assign({ classic: true }, parsed.ownedSkins),
+        ownedFrames: Object.assign({ none: true }, parsed.ownedFrames),
+        ownedTitles: Object.assign({ none: true }, parsed.ownedTitles)
       });
     } catch (e) { return defaultState(); }
   }
@@ -198,7 +232,7 @@
   }
 
   /* ============================================================
-     3. НАВИГАЦИЯ: ЭКРАНЫ + МОДАЛКИ + TOAST
+     4. НАВИГАЦИЯ: ЭКРАНЫ + МОДАЛКИ + ВКЛАДКИ + TOAST
      ============================================================ */
   const screens = {};
   document.querySelectorAll('.screen').forEach((el) => { screens[el.id] = el; });
@@ -218,18 +252,24 @@
     if (id === 'modalAchievements') renderAchievements();
     if (id === 'modalLeaderboard') renderLeaderboard();
     if (id === 'modalWheel') refreshWheelState();
+    if (id === 'modalShop') { renderSkinsTab(); renderFramesTab(); }
+    if (id === 'modalQuests') { ensureDailyQuests(); renderQuests(); }
     renderResources();
   }
-  function closeModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.add('hidden');
-  }
+  function closeModal(id) { const el = document.getElementById(id); if (el) el.classList.add('hidden'); }
 
-  document.querySelectorAll('[data-close]').forEach((btn) => {
-    btn.addEventListener('click', () => closeModal(btn.dataset.close));
-  });
-  document.querySelectorAll('[data-back]').forEach((btn) => {
-    btn.addEventListener('click', () => showScreen(btn.dataset.back));
+  document.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', () => closeModal(btn.dataset.close)));
+  document.querySelectorAll('[data-back]').forEach((btn) => btn.addEventListener('click', () => showScreen(btn.dataset.back)));
+
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const parent = btn.closest('.overlay-card');
+      parent.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      parent.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+      Sound.select();
+    });
   });
 
   let globalToastEl = null;
@@ -253,14 +293,14 @@
   }
 
   /* ============================================================
-     4. РЕСУРСЫ: РЕНДЕР, ЖИЗНИ, ЗВУК-ТОГГЛ
+     5. РЕСУРСЫ: РЕНДЕР, ЖИЗНИ, ЗВУК-ТОГГЛ
      ============================================================ */
   function renderResources() {
     document.getElementById('coinsValue').textContent = state.coins;
     document.getElementById('gemsValue').textContent = state.gems;
-    document.getElementById('livesValue').textContent = state.lives;
+    document.getElementById('livesValue').textContent = state.infiniteLives ? '∞' : state.lives;
     const timerEl = document.getElementById('livesTimer');
-    if (state.lives < MAX_LIVES && state.nextLifeAt) {
+    if (!state.infiniteLives && state.lives < MAX_LIVES && state.nextLifeAt) {
       const left = Math.max(0, state.nextLifeAt - Date.now());
       const m = Math.floor(left / 60000);
       const s = Math.floor((left % 60000) / 1000);
@@ -274,7 +314,6 @@
   function updateSoundIcons() {
     document.querySelectorAll('#soundToggleBtn, #soundToggleBtnGame').forEach((b) => { b.textContent = state.sound ? '🔊' : '🔇'; });
   }
-
   function toggleSound() {
     state.sound = !state.sound;
     saveState();
@@ -285,6 +324,7 @@
   document.getElementById('soundToggleBtnGame').addEventListener('click', toggleSound);
 
   function tickLives() {
+    if (state.infiniteLives) { renderResources(); return; }
     const now = Date.now();
     if (state.lives < MAX_LIVES) {
       if (!state.nextLifeAt) state.nextLifeAt = now + LIFE_REGEN_MS;
@@ -301,6 +341,7 @@
   setInterval(tickLives, 1000);
 
   function spendLife() {
+    if (state.infiniteLives) return true;
     if (state.lives <= 0) return false;
     const wasFull = state.lives === MAX_LIVES;
     state.lives -= 1;
@@ -314,10 +355,12 @@
   function addGems(n) { state.gems += n; saveState(); renderResources(); }
 
   /* ============================================================
-     5. УРОВНИ: ДИНАМИЧЕСКИЙ РАЗМЕР ПОЛЯ И СЛОЖНОСТЬ
+     6. УРОВНИ: РАЗМЕР ПОЛЯ, СЛОЖНОСТЬ И РЕЖИМЫ ПОБЕДЫ
      ============================================================ */
-  const FRUIT_EMOJI = ['🍎', '🍌', '🍓', '🍇', '🍊', '🫐'];
   const LEVEL_COUNT = 24;
+  const MODE_CYCLE = ['collect', 'score', 'ice', 'ingredient', 'timeattack'];
+  const MODE_ICON = { collect: '🍇', score: '⭐', ice: '🧊', ingredient: '🥥', timeattack: '⏱' };
+  const MODE_NAME = { collect: 'Сбор фруктов', score: 'Набор очков', ice: 'Зачистка льда', ingredient: 'Доставка ингредиента', timeattack: 'На время' };
 
   // Уровень 1: 4x4 (3 вида фишек) · Уровень 2: 5x5 (4 вида)
   // Уровень 3: 6x6 + лёд · Уровень 4: 7x7 + шоколад · Уровень 5+: 8x8 полная сложность
@@ -333,22 +376,48 @@
     else if (n === 2) fruitCount = 4;
     else if (n === 3) fruitCount = 5;
 
+    let mode;
+    if (n === 1) mode = 'collect';
+    else if (n === 2) mode = 'score';
+    else if (n === 3) mode = 'ice';
+    else if (n === 4) mode = 'collect';
+    else mode = MODE_CYCLE[(n - 5) % MODE_CYCLE.length];
+
     const moves = 14 + Math.floor(n / 2) * 2;
     const cellsTotal = size * size;
-    const goalsCount = n < 3 ? 1 : (n < 8 ? 2 : 3);
+
+    let iceCount = (n >= 3) ? Math.min(Math.floor(cellsTotal * 0.12), 2 + n) : 0;
+    let chocoCount = (n >= 4) ? Math.min(Math.floor(cellsTotal * 0.1), 1 + Math.floor(n / 2)) : 0;
+    if (mode === 'ice') iceCount = Math.max(iceCount, 6);
+    if (mode === 'ingredient' || mode === 'timeattack') chocoCount = Math.min(chocoCount, 2); // не мешаем основному режиму
+
     const goals = [];
-    const used = [];
-    for (let i = 0; i < goalsCount; i++) {
-      let f;
-      do { f = Math.floor(Math.random() * fruitCount); } while (used.includes(f));
-      used.push(f);
-      const target = Math.max(6, Math.round(cellsTotal * 0.35) + n * 2 + i * 3);
-      goals.push({ fruit: f, target, current: 0 });
+    if (mode === 'collect') {
+      const goalsCount = n < 8 ? 2 : 3;
+      const used = [];
+      for (let i = 0; i < goalsCount; i++) {
+        let f;
+        do { f = Math.floor(Math.random() * fruitCount); } while (used.includes(f));
+        used.push(f);
+        const target = Math.max(6, Math.round(cellsTotal * 0.35) + n * 2 + i * 3);
+        goals.push({ type: 'collect', fruit: f, target, current: 0 });
+      }
+    } else if (mode === 'score') {
+      goals.push({ type: 'score', target: 600 + n * 120, current: 0 });
+    } else if (mode === 'ice') {
+      goals.push({ type: 'ice', target: iceCount, current: 0 });
+    } else if (mode === 'ingredient') {
+      goals.push({ type: 'ingredient', target: Math.min(6, 3 + Math.floor(n / 6)), current: 0 });
+    } else if (mode === 'timeattack') {
+      goals.push({ type: 'combo', target: 5 + Math.floor(n / 4), current: 0 });
     }
-    const iceCount = n >= 3 ? Math.min(Math.floor(cellsTotal * 0.12), 2 + n) : 0;
-    const chocoCount = n >= 4 ? Math.min(Math.floor(cellsTotal * 0.1), 1 + Math.floor(n / 2)) : 0;
-    const par = moves * 45;
-    return { level: n, size, fruitCount, moves, goals, iceCount, chocoCount, par };
+
+    const par = (mode === 'timeattack') ? (300 + n * 40) : moves * 45;
+    return {
+      level: n, size, fruitCount, mode, moves, goals,
+      iceCount, chocoCount, par,
+      ingredientEmoji: Math.random() < 0.5 ? '🥥' : '🍍'
+    };
   }
 
   function renderLevelsGrid() {
@@ -360,16 +429,14 @@
       const btn = document.createElement('button');
       btn.className = 'level-node' + (locked ? ' locked' : '') + (n === state.unlockedLevel ? ' current' : '');
       const stars = state.levelStars[n] || 0;
-      btn.innerHTML = `<div>${locked ? '🔒' : n}</div><div class="stars">${locked ? '' : '⭐'.repeat(stars) + '☆'.repeat(3 - stars)}</div><div class="size-tag">${cfg.size}×${cfg.size}</div>`;
-      if (!locked) {
-        btn.addEventListener('click', () => { haptic('light'); startLevel(n); });
-      }
+      btn.innerHTML = `<div>${locked ? '🔒' : n}</div><div class="mode-tag">${locked ? '' : MODE_ICON[cfg.mode]}</div><div class="stars">${locked ? '' : '⭐'.repeat(stars) + '☆'.repeat(3 - stars)}</div><div class="size-tag">${cfg.size}×${cfg.size}</div>`;
+      if (!locked) btn.addEventListener('click', () => { haptic('light'); startLevel(n); });
       grid.appendChild(btn);
     }
   }
 
   /* ============================================================
-     6. ДОСТИЖЕНИЯ
+     7. ДОСТИЖЕНИЯ
      ============================================================ */
   const ACHIEVEMENTS = [
     { id: 'first_win', icon: '🥇', title: 'Первая победа', desc: 'Пройдите любой уровень', check: (s) => s.stats.wins >= 1 },
@@ -380,7 +447,8 @@
     { id: 'cleared1000', icon: '🌪️', title: 'Ураган', desc: 'Уничтожьте 1000 фишек', check: (s) => s.stats.totalCleared >= 1000 },
     { id: 'booster10', icon: '🔨', title: 'Мастер бустеров', desc: 'Используйте 10 бустеров', check: (s) => s.stats.boostersUsed >= 10 },
     { id: 'rich', icon: '🪙', title: 'Богач', desc: 'Заработайте 2000 монет суммарно', check: (s) => s.stats.totalCoinsEarned >= 2000 },
-    { id: 'stars3x5', icon: '🌟', title: 'Перфекционист', desc: 'Получите 3 звезды на 5 уровнях', check: (s) => Object.values(s.levelStars).filter((v) => v >= 3).length >= 5 }
+    { id: 'stars3x5', icon: '🌟', title: 'Перфекционист', desc: 'Получите 3 звезды на 5 уровнях', check: (s) => Object.values(s.levelStars).filter((v) => v >= 3).length >= 5 },
+    { id: 'skin', icon: '🎨', title: 'Стилист', desc: 'Купите любой скин фишек', check: (s) => Object.keys(s.ownedSkins).length > 1 }
   ];
 
   function renderAchievements() {
@@ -396,7 +464,7 @@
   }
 
   /* ============================================================
-     7. ТАБЛИЦА ЛИДЕРОВ (локальная)
+     8. ТАБЛИЦА ЛИДЕРОВ (локальная)
      ============================================================ */
   function renderLeaderboard() {
     const list = document.getElementById('leaderboardList');
@@ -410,14 +478,13 @@
       list.appendChild(li);
     });
   }
-
   function submitScoreToLeaderboard(score) {
     if (!state.stats.bestScore || score > state.stats.bestScore) state.stats.bestScore = score;
     saveState();
   }
 
   /* ============================================================
-     8. МАГАЗИН
+     9. МАГАЗИН: БУСТЕРЫ
      ============================================================ */
   document.querySelectorAll('[data-shop-buy]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -428,35 +495,177 @@
       if (balance < cost) { showToast('Недостаточно ' + (currency === 'gems' ? 'кристаллов 💎' : 'монет 🪙')); Sound.error(); haptic('error'); return; }
       if (currency === 'gems') state.gems -= cost; else state.coins -= cost;
 
-      if (item === 'hammer') state.boosters.hammer += 1;
-      else if (item === 'shuffle') state.boosters.shuffle += 1;
+      if (item === 'hammer') state.boosters.hammer += 3;
+      else if (item === 'shuffle') state.boosters.shuffle += 3;
+      else if (item === 'rocketBoost') state.boosters.rocketBoost += 2;
       else if (item === 'moves') state.boosters.moves = (state.boosters.moves || 0) + 1;
       else if (item === 'lives') state.lives = MAX_LIVES;
       else if (item === 'gems50') state.gems += 50;
 
       saveState();
       renderResources();
-      Sound.click();
-      haptic('light');
+      renderBoosterCounts();
+      Sound.click(); haptic('light');
       showToast('Покупка совершена!');
     });
   });
 
+  /* ---------- Скины фишек ---------- */
+  function renderSkinsTab() {
+    const grid = document.getElementById('skinsGrid');
+    grid.innerHTML = '';
+    Object.values(SKINS).forEach((skin) => {
+      const owned = !!state.ownedSkins[skin.id];
+      const equipped = state.equippedSkin === skin.id;
+      const card = document.createElement('div');
+      card.className = 'shop-card';
+      const priceLabel = skin.cost === 0 ? 'Бесплатно' : `${skin.cost} 🪙`;
+      let btnLabel = owned ? (equipped ? '✅ Выбрано' : 'Выбрать') : priceLabel;
+      let btnClass = owned ? (equipped ? 'equipped' : 'owned') : '';
+      card.innerHTML = `<div class="shop-icon">${skin.emojis.slice(0, 3).join('')}</div><div class="shop-name">${skin.name}</div><div class="shop-desc">${skin.emojis.join(' ')}</div><button class="shop-buy-btn ${btnClass}">${btnLabel}</button>`;
+      card.querySelector('button').addEventListener('click', () => handleSkinClick(skin, owned, equipped));
+      grid.appendChild(card);
+    });
+  }
+  function handleSkinClick(skin, owned, equipped) {
+    if (equipped) return;
+    if (owned) {
+      state.equippedSkin = skin.id;
+      applyEquippedSkin();
+      saveState();
+      renderSkinsTab();
+      Sound.click(); haptic('light');
+      showToast('Скин применён: ' + skin.name);
+      return;
+    }
+    if (state.coins < skin.cost) { showToast('Недостаточно монет 🪙'); Sound.error(); haptic('error'); return; }
+    state.coins -= skin.cost;
+    state.ownedSkins[skin.id] = true;
+    state.equippedSkin = skin.id;
+    applyEquippedSkin();
+    saveState();
+    renderResources();
+    renderSkinsTab();
+    Sound.win(); haptic('success');
+    showToast('Скин куплен: ' + skin.name);
+  }
+
+  /* ---------- Рамки и звания ---------- */
+  function renderFramesTab() {
+    const grid = document.getElementById('framesGrid');
+    grid.innerHTML = '';
+    const items = [
+      ...Object.values(FRAMES).filter((f) => f.id !== 'none').map((f) => ({ kind: 'frame', ...f })),
+      ...Object.values(TITLES).filter((t) => t.id !== 'none').map((t) => ({ kind: 'title', ...t }))
+    ];
+    items.forEach((item) => {
+      const ownedMap = item.kind === 'frame' ? state.ownedFrames : state.ownedTitles;
+      const equippedVal = item.kind === 'frame' ? state.equippedFrame : state.equippedTitle;
+      const owned = !!ownedMap[item.id];
+      const equipped = equippedVal === item.id;
+      const card = document.createElement('div');
+      card.className = 'shop-card';
+      const priceLabel = `${item.cost} 💎`;
+      const btnLabel = owned ? (equipped ? '✅ Выбрано' : 'Выбрать') : priceLabel;
+      const btnClass = owned ? (equipped ? 'equipped' : 'owned') : '';
+      card.innerHTML = `<div class="shop-icon">${item.icon || '⬜'}</div><div class="shop-name">${item.name}</div><div class="shop-desc">${item.kind === 'frame' ? 'Рамка профиля' : 'Звание'}</div><button class="shop-buy-btn ${btnClass}">${btnLabel}</button>`;
+      card.querySelector('button').addEventListener('click', () => handleCosmeticClick(item, owned, equipped));
+      grid.appendChild(card);
+    });
+  }
+  function handleCosmeticClick(item, owned, equipped) {
+    if (equipped) return;
+    const ownedMap = item.kind === 'frame' ? state.ownedFrames : state.ownedTitles;
+    if (owned) {
+      if (item.kind === 'frame') state.equippedFrame = item.id; else state.equippedTitle = item.id;
+      saveState(); renderPlayerBadge(); renderFramesTab();
+      Sound.click(); haptic('light');
+      showToast('Применено: ' + item.name);
+      return;
+    }
+    if (state.gems < item.cost) { showToast('Недостаточно кристаллов 💎'); Sound.error(); haptic('error'); return; }
+    state.gems -= item.cost;
+    ownedMap[item.id] = true;
+    if (item.kind === 'frame') state.equippedFrame = item.id; else state.equippedTitle = item.id;
+    saveState();
+    renderResources(); renderPlayerBadge(); renderFramesTab();
+    Sound.win(); haptic('success');
+    showToast('Приобретено: ' + item.name);
+  }
+
   /* ============================================================
-     9. КОЛЕСО ФОРТУНЫ
+     10. ЕЖЕДНЕВНЫЕ ЗАДАНИЯ
+     ============================================================ */
+  const QUEST_DEFS = [
+    { id: 'apples', desc: 'Собери 50 фруктов первого вида 🍎', target: 50, reward: { coins: 80 }, icon: '🍎' },
+    { id: 'bombs', desc: 'Используй 3 бомбы 💣', target: 3, reward: { coins: 60 }, icon: '💣' },
+    { id: 'levels', desc: 'Пройди 2 уровня', target: 2, reward: { gems: 5 }, icon: '🚩' }
+  ];
+
+  function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+  function ensureDailyQuests() {
+    const today = todayStr();
+    if (!state.dailyQuests || state.dailyQuests.date !== today) {
+      state.dailyQuests = { date: today, progress: { apples: 0, bombs: 0, levels: 0 }, claimed: { apples: false, bombs: false, levels: false } };
+      saveState();
+    }
+  }
+
+  function incrementQuest(id, amount) {
+    ensureDailyQuests();
+    const q = QUEST_DEFS.find((d) => d.id === id);
+    if (!q) return;
+    const cur = state.dailyQuests.progress[id] || 0;
+    state.dailyQuests.progress[id] = Math.min(q.target, cur + amount);
+    saveState();
+  }
+
+  function renderQuests() {
+    const list = document.getElementById('questsList');
+    list.innerHTML = '';
+    QUEST_DEFS.forEach((q) => {
+      const cur = state.dailyQuests.progress[q.id] || 0;
+      const done = cur >= q.target;
+      const claimed = !!state.dailyQuests.claimed[q.id];
+      const card = document.createElement('div');
+      card.className = 'quest-card';
+      const rewardLabel = q.reward.coins ? `+${q.reward.coins} 🪙` : `+${q.reward.gems} 💎`;
+      card.innerHTML = `
+        <div class="quest-top"><span>${q.icon} ${q.desc}</span><span>${cur}/${q.target}</span></div>
+        <div class="quest-progress-bar"><div class="quest-progress-fill" style="width:${Math.round((cur / q.target) * 100)}%"></div></div>
+        <button class="quest-claim-btn ${claimed ? 'claimed' : (done ? 'ready' : '')}">${claimed ? '✅ Получено' : (done ? `Забрать ${rewardLabel}` : rewardLabel)}</button>
+      `;
+      const btn = card.querySelector('.quest-claim-btn');
+      if (done && !claimed) {
+        btn.addEventListener('click', () => {
+          state.dailyQuests.claimed[q.id] = true;
+          if (q.reward.coins) addCoins(q.reward.coins);
+          if (q.reward.gems) addGems(q.reward.gems);
+          saveState();
+          Sound.win(); haptic('success');
+          renderQuests();
+        });
+      }
+      list.appendChild(card);
+    });
+  }
+
+  document.getElementById('btnQuests').addEventListener('click', () => { haptic('light'); openModal('modalQuests'); });
+
+  /* ============================================================
+     11. КОЛЕСО ФОРТУНЫ
      ============================================================ */
   const WHEEL_REWARDS = [
     { label: '+50🪙', apply: () => addCoins(50) },
     { label: '+5💎', apply: () => addGems(5) },
     { label: '+100🪙', apply: () => addCoins(100) },
-    { label: '🔨x1', apply: () => { state.boosters.hammer += 1; saveState(); } },
+    { label: '🔨x1', apply: () => { state.boosters.hammer += 1; saveState(); renderBoosterCounts(); } },
     { label: '+10💎', apply: () => addGems(10) },
     { label: '+200🪙', apply: () => addCoins(200) },
-    { label: '🔀x1', apply: () => { state.boosters.shuffle += 1; saveState(); } },
+    { label: '🔀x1', apply: () => { state.boosters.shuffle += 1; saveState(); renderBoosterCounts(); } },
     { label: '❤️Полные', apply: () => { state.lives = MAX_LIVES; saveState(); } }
   ];
-
-  function todayStr() { return new Date().toISOString().slice(0, 10); }
 
   function refreshWheelState() {
     const canSpin = state.lastWheelSpin !== todayStr();
@@ -471,23 +680,46 @@
     const sliceDeg = 360 / WHEEL_REWARDS.length;
     const targetDeg = 360 * 4 + (360 - (idx * sliceDeg) - sliceDeg / 2);
     dial.style.transform = `rotate(${targetDeg}deg)`;
-    Sound.booster();
-    haptic('medium');
+    Sound.booster(); haptic('medium');
     setTimeout(() => {
       WHEEL_REWARDS[idx].apply();
       state.lastWheelSpin = todayStr();
       state.wheelStreak = (state.wheelStreak || 0) + 1;
       saveState();
       renderResources();
-      Sound.win();
-      haptic('success');
+      Sound.win(); haptic('success');
       showToast('Награда: ' + WHEEL_REWARDS[idx].label);
       refreshWheelState();
     }, 3300);
   });
 
   /* ============================================================
-     10. ПРИВЯЗКА КНОПОК ГЛАВНОГО МЕНЮ
+     12. АДМИН-ПАНЕЛЬ
+     ============================================================ */
+  document.getElementById('btnAdmin').addEventListener('click', () => { haptic('light'); openModal('modalAdmin'); });
+  document.getElementById('btnAdminCoins').addEventListener('click', () => { addCoins(10000); showToast('+10 000 монет'); Sound.win(); });
+  document.getElementById('btnAdminGems').addEventListener('click', () => { addGems(100); showToast('+100 кристаллов'); Sound.win(); });
+  document.getElementById('btnAdminUnlock').addEventListener('click', () => {
+    state.unlockedLevel = LEVEL_COUNT; saveState(); showToast('Все уровни открыты 🔓'); Sound.win();
+  });
+  document.getElementById('btnAdminInfLives').addEventListener('click', () => {
+    state.infiniteLives = !state.infiniteLives; saveState(); renderResources();
+    showToast(state.infiniteLives ? 'Бесконечные жизни включены' : 'Бесконечные жизни выключены');
+  });
+  document.getElementById('btnAdminReset').addEventListener('click', () => {
+    if (!confirm('Точно сбросить весь прогресс?')) return;
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* noop */ }
+    state = defaultState();
+    saveState();
+    applyEquippedSkin();
+    renderResources(); renderPlayerBadge();
+    closeModal('modalAdmin');
+    showScreen('screenMenu');
+    showToast('Прогресс сброшен');
+  });
+
+  /* ============================================================
+     13. ПРИВЯЗКА КНОПОК ГЛАВНОГО МЕНЮ
      ============================================================ */
   document.getElementById('btnPlay').addEventListener('click', () => { haptic('light'); showScreen('screenLevels'); });
   document.getElementById('btnShop').addEventListener('click', () => { haptic('light'); openModal('modalShop'); });
@@ -496,9 +728,16 @@
   document.getElementById('btnAchievements').addEventListener('click', () => { haptic('light'); openModal('modalAchievements'); });
 
   /* ============================================================
-     11. ИГРОВОЙ ДВИЖОК MATCH-3 (динамический размер поля)
+     14. ИГРОВОЙ ДВИЖОК MATCH-3 (размер поля, режимы, скины, частицы)
      ============================================================ */
   let SIZE = 8;
+  let FRUIT_EMOJI = SKINS.classic.emojis.slice();
+  function applyEquippedSkin() {
+    const skin = SKINS[state.equippedSkin] || SKINS.classic;
+    FRUIT_EMOJI = skin.emojis.slice();
+  }
+  applyEquippedSkin();
+
   const SWAP_ANIM_MS = 220;
   const MATCH_ANIM_MS = 260;
   const FALL_ANIM_MS = 280;
@@ -507,6 +746,9 @@
   const boardEl = document.getElementById('board');
   const scoreEl = document.getElementById('scoreValue');
   const movesEl = document.getElementById('movesValue');
+  const timeEl = document.getElementById('timeValue');
+  const particleCanvas = document.getElementById('particleCanvas');
+  const pctx = particleCanvas.getContext('2d');
 
   let board = [];
   let tileEls = [];
@@ -517,6 +759,9 @@
   let selected = null;
   let armedBooster = null;
   let cellSize = 0;
+  let paused = false;
+  let timeAttackTimer = null;
+  let lastActionAt = Date.now();
 
   function key(r, c) { return r + ',' + c; }
   function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
@@ -531,11 +776,12 @@
   function specialClass(t) { return { S_ROCKET_H: 'special-rocket-h', S_ROCKET_V: 'special-rocket-v', S_BOMB: 'special-bomb', S_RAINBOW: 'special-rainbow' }[t] || ''; }
   function isMovable(pos) {
     const v = board[pos.row][pos.col];
-    if (v === 'S_CHOCO') return false;
+    if (v === 'S_CHOCO' || v === 'ING') return false;
     if (icedSet.has(key(pos.row, pos.col))) return false;
     return true;
   }
   function swapCellsInPlace(b, r1, c1, r2, c2) { const t = b[r1][c1]; b[r1][c1] = b[r2][c2]; b[r2][c2] = t; }
+  function resetIdleTimer() { lastActionAt = Date.now(); clearTileHints(); }
 
   function pickCommonFruitType() {
     const max = (currentLevel && currentLevel.fruitCount) ? currentLevel.fruitCount : FRUIT_EMOJI.length;
@@ -562,6 +808,76 @@
     return Array.from(cells);
   }
 
+  /* ---------- Частицы сока (Canvas) ---------- */
+  const FRUIT_COLORS = ['#ff5d7a', '#ffd23f', '#ff8fd6', '#b24dff', '#ffb347', '#4fe3ff'];
+  let particles = [];
+  function resizeParticleCanvas() {
+    const rect = boardEl.getBoundingClientRect();
+    particleCanvas.width = rect.width;
+    particleCanvas.height = rect.height;
+    particleCanvas.style.width = rect.width + 'px';
+    particleCanvas.style.height = rect.height + 'px';
+  }
+  function cellCenterPx(r, c) {
+    const gapPx = 4;
+    const step = cellSize + gapPx;
+    const padding = 8;
+    return { x: padding + c * step + cellSize / 2, y: padding + r * step + cellSize / 2 };
+  }
+  function spawnBurst(px, py, color, count) {
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 1.5 + Math.random() * 2.5;
+      particles.push({ x: px, y: py, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 1, life: 1, color, size: 2 + Math.random() * 2 });
+    }
+  }
+  function tickParticles() {
+    pctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+    if (particles.length) {
+      particles.forEach((p) => { p.x += p.vx; p.y += p.vy; p.vy += 0.12; p.life -= 0.035; });
+      particles = particles.filter((p) => p.life > 0);
+      particles.forEach((p) => {
+        pctx.globalAlpha = Math.max(0, p.life);
+        pctx.fillStyle = p.color;
+        pctx.beginPath();
+        pctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        pctx.fill();
+      });
+      pctx.globalAlpha = 1;
+    }
+    requestAnimationFrame(tickParticles);
+  }
+  requestAnimationFrame(tickParticles);
+
+  function burstAtCells(cellKeys, colorOverride) {
+    cellKeys.forEach((k) => {
+      const [r, c] = k.split(',').map(Number);
+      const val = board[r] ? board[r][c] : undefined;
+      const pos = cellCenterPx(r, c);
+      let color = colorOverride;
+      if (!color) {
+        if (typeof val === 'number') color = FRUIT_COLORS[val % FRUIT_COLORS.length];
+        else color = '#ffffff';
+      }
+      spawnBurst(pos.x, pos.y, color, 4);
+    });
+  }
+
+  /* ---------- Всплывающие надписи ---------- */
+  const SWEET_WORDS = ['SWEET!', 'JUICY!', 'TASTY!', 'YUMMY!'];
+  const COMBO_WORDS = ['COMBO!', 'AWESOME!', 'UNSTOPPABLE!'];
+  function showFloatingLabel(text) {
+    const rect = boardEl.getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className = 'float-label';
+    el.textContent = text;
+    el.style.left = (rect.left + rect.width / 2 - 60 + (Math.random() * 40 - 20)) + 'px';
+    el.style.top = (rect.top + rect.height / 2 - 20) + 'px';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => { el.style.top = (rect.top + rect.height / 2 - 90) + 'px'; el.style.opacity = '0'; });
+    setTimeout(() => el.remove(), 800);
+  }
+
   /* ---------- Построение поля ---------- */
   function buildFruitOnlyBoard() {
     const b = [];
@@ -584,6 +900,7 @@
     SIZE = cfg.size;
     board = buildFruitOnlyBoard();
     icedSet = new Set();
+
     let placed = 0, guard = 0;
     while (placed < cfg.chocoCount && guard < 500) {
       guard++;
@@ -599,6 +916,20 @@
       if (board[r][c] === 'S_CHOCO' || icedSet.has(k)) continue;
       icedSet.add(k); placed++;
     }
+
+    if (cfg.mode === 'ingredient') {
+      const target = cfg.goals[0].target;
+      placed = 0; guard = 0;
+      while (placed < target && guard < 500) {
+        guard++;
+        const r = Math.floor(Math.random() * Math.min(2, SIZE));
+        const c = Math.floor(Math.random() * SIZE);
+        if (board[r][c] === 'S_CHOCO' || board[r][c] === 'ING') continue;
+        board[r][c] = 'ING';
+        placed++;
+      }
+    }
+
     renderAll();
     if (!hasAnyValidMoveBoard()) { reshuffleBoard(); }
   }
@@ -606,6 +937,7 @@
   /* ---------- Рендер ---------- */
   function renderAll() {
     boardEl.innerHTML = '';
+    boardEl.appendChild(particleCanvas);
     tileEls = [];
     cellBgEls = [];
     for (let i = 0; i < SIZE * SIZE; i++) {
@@ -625,6 +957,7 @@
       tileEls.push(row);
     }
     layoutBoard(false);
+    resizeParticleCanvas();
   }
 
   function createTileEl(r, c, val) {
@@ -636,6 +969,9 @@
     } else if (val === 'S_CHOCO') {
       el.textContent = '🍫';
       el.classList.add('obstacle-choco');
+    } else if (val === 'ING') {
+      el.textContent = (currentLevel && currentLevel.ingredientEmoji) || '🥥';
+      el.classList.add('tile-ingredient');
     } else if (isSpecialType(val)) {
       el.textContent = specialEmoji(val);
       el.classList.add(specialClass(val));
@@ -669,6 +1005,7 @@
         if (!animate) { void el.offsetWidth; el.style.transition = ''; }
       }
     }
+    resizeParticleCanvas();
   }
 
   function positionTile(el, r, c) {
@@ -681,15 +1018,59 @@
 
   window.addEventListener('resize', () => { if (currentLevel) layoutBoard(false); });
 
+  /* ---------- Подсказки (hint system) ---------- */
+  function findHintMove() {
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (!isMovable({ row: r, col: c })) continue;
+        if (c < SIZE - 1 && isMovable({ row: r, col: c + 1 })) {
+          swapCellsInPlace(board, r, c, r, c + 1);
+          const ok = analyzeMatches(board).matchedCells.size > 0;
+          swapCellsInPlace(board, r, c, r, c + 1);
+          if (ok) return { a: { row: r, col: c }, b: { row: r, col: c + 1 } };
+        }
+        if (r < SIZE - 1 && isMovable({ row: r + 1, col: c })) {
+          swapCellsInPlace(board, r, c, r + 1, c);
+          const ok = analyzeMatches(board).matchedCells.size > 0;
+          swapCellsInPlace(board, r, c, r + 1, c);
+          if (ok) return { a: { row: r, col: c }, b: { row: r + 1, col: c } };
+        }
+      }
+    }
+    return null;
+  }
+  let hintEls = [];
+  function clearTileHints() {
+    hintEls.forEach((el) => el && el.classList.remove('hint'));
+    hintEls = [];
+  }
+  function showHint() {
+    if (!currentLevel || busy || paused) return;
+    const move = findHintMove();
+    if (!move) return;
+    const elA = tileEls[move.a.row][move.a.col], elB = tileEls[move.b.row][move.b.col];
+    clearTileHints();
+    if (elA) { elA.classList.add('hint'); hintEls.push(elA); }
+    if (elB) { elB.classList.add('hint'); hintEls.push(elB); }
+  }
+  setInterval(() => {
+    const gameActive = document.getElementById('screenGame').classList.contains('active');
+    if (gameActive && currentLevel && !busy && !paused && (Date.now() - lastActionAt >= 4000)) {
+      showHint();
+      lastActionAt = Date.now() - 3000; // повторять подсказку раз в секунду, пока бездействие продолжается
+    }
+  }, 1000);
+
   /* ---------- Ввод ---------- */
   function attachTileEvents(el) {
     let startX = 0, startY = 0, dragging = false, moved = false;
 
     el.addEventListener('pointerdown', (e) => {
       if (busy) return;
+      resetIdleTimer();
       const r = parseInt(el.dataset.row, 10), c = parseInt(el.dataset.col, 10);
       if (armedBooster) { triggerArmedBoosterOnTile(r, c); return; }
-      if (board[r][c] === 'S_CHOCO') return;
+      if (board[r][c] === 'S_CHOCO' || board[r][c] === 'ING') return;
       startX = e.clientX; startY = e.clientY; dragging = true; moved = false;
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
     });
@@ -719,7 +1100,8 @@
 
   function handleTap(r, c) {
     if (busy || !currentLevel) return;
-    if (board[r][c] === 'S_CHOCO') return;
+    if (board[r][c] === 'S_CHOCO' || board[r][c] === 'ING') return;
+    resetIdleTimer();
     Sound.select(); haptic('select');
     if (!selected) { selected = { row: r, col: c }; setSelectedVisual(r, c, true); return; }
     if (selected.row === r && selected.col === c) { setSelectedVisual(r, c, false); selected = null; return; }
@@ -756,7 +1138,7 @@
   }
 
   async function attemptSwap(a, b) {
-    if (busy || !currentLevel) return;
+    if (busy || !currentLevel || paused) return;
     if (!inBounds(a) || !inBounds(b) || !isAdjacent(a, b)) return;
     if (currentLevel.movesLeft <= 0) return;
     if (!isMovable(a) || !isMovable(b)) { markInvalid(a, b); Sound.error(); haptic('error'); return; }
@@ -890,7 +1272,14 @@
     return { matchedCells: matched, specials };
   }
 
-  /* ---------- Очистка / очки / цели ---------- */
+  /* ---------- Очки, цели, задания ---------- */
+  function registerCombo(cascadeLevel) {
+    if (cascadeLevel > 1 && currentLevel && currentLevel.mode === 'timeattack') {
+      const g = currentLevel.goals.find((x) => x.type === 'combo');
+      if (g && g.current < g.target) g.current++;
+    }
+  }
+
   function addScoreAndGoals(cellKeys, cascadeLevel) {
     let scoreGain = 0;
     cellKeys.forEach((k) => {
@@ -899,7 +1288,8 @@
       if (typeof val === 'number') {
         scoreGain += 10;
         state.stats.totalCleared++;
-        currentLevel.goals.forEach((g) => { if (g.fruit === val && g.current < g.target) g.current++; });
+        if (val === 0) incrementQuest('apples', 1);
+        currentLevel.goals.forEach((g) => { if (g.type === 'collect' && g.fruit === val && g.current < g.target) g.current++; });
       } else if (val === 'S_CHOCO') {
         scoreGain += 15;
       } else if (isSpecialType(val)) {
@@ -910,6 +1300,8 @@
     const mult = 1 + (cascadeLevel - 1) * 0.5;
     const total = Math.max(0, Math.round((scoreGain + bonus) * mult));
     currentLevel.score += total;
+    const scoreGoal = currentLevel.goals.find((g) => g.type === 'score');
+    if (scoreGoal) scoreGoal.current = currentLevel.score;
     const coinsGain = Math.max(0, Math.round(total / 10));
     if (coinsGain > 0) { addCoins(coinsGain); flyCoins(coinsGain); }
     updateGameHUD();
@@ -924,7 +1316,12 @@
         if (rr < 0 || rr >= SIZE || cc < 0 || cc >= SIZE) return;
         const kk = key(rr, cc);
         if (board[rr][cc] === 'S_CHOCO') toDestroy.add(kk);
-        if (icedSet.has(kk)) { icedSet.delete(kk); const el = tileEls[rr][cc]; if (el) el.classList.remove('iced'); }
+        if (icedSet.has(kk)) {
+          icedSet.delete(kk);
+          const el = tileEls[rr][cc]; if (el) el.classList.remove('iced');
+          const iceGoal = currentLevel && currentLevel.goals.find((g) => g.type === 'ice');
+          if (iceGoal && iceGoal.current < iceGoal.target) iceGoal.current++;
+        }
       });
     });
     toDestroy.forEach((k) => {
@@ -950,8 +1347,12 @@
     toClear.forEach((k) => { const [r, c] = k.split(',').map(Number); const el = tileEls[r][c]; if (el) el.classList.add('matched'); });
 
     const totalCount = matchedCells.size;
+    burstAtCells(toClear);
     addScoreAndGoals(toClear, cascadeLevel);
+    registerCombo(cascadeLevel);
     showCombo(cascadeLevel, totalCount);
+    if (totalCount >= 4) showFloatingLabel(SWEET_WORDS[Math.floor(Math.random() * SWEET_WORDS.length)]);
+    if (cascadeLevel >= 2) showFloatingLabel(COMBO_WORDS[Math.min(cascadeLevel - 2, COMBO_WORDS.length - 1)] + (cascadeLevel > 2 ? ` x${cascadeLevel}` : ''));
     Sound.matchN(totalCount);
     if (cascadeLevel > 1) Sound.combo(cascadeLevel);
     if (toConvert.length) Sound.booster();
@@ -992,20 +1393,23 @@
       const val = board[r] ? board[r][c] : undefined;
       if (isSpecialType(val)) {
         processed.add(k);
+        if (val === 'S_BOMB') incrementQuest('bombs', 1);
         const extra = computeExplosionCells(r, c, val, null);
         extra.forEach((ek) => { if (!set.has(ek)) { set.add(ek); queue.push(ek); } });
       }
     }
     const cells = Array.from(set).filter((k) => {
       const [r, c] = k.split(',').map(Number);
-      return board[r][c] !== null && board[r][c] !== undefined;
+      const v = board[r][c];
+      return v !== null && v !== undefined && v !== 'ING';
     });
     if (cells.length === 0) return;
 
     cells.forEach((k) => { const [r, c] = k.split(',').map(Number); const el = tileEls[r][c]; if (el) el.classList.add('exploding'); });
+    burstAtCells(cells, '#ffe86b');
     addScoreAndGoals(cells, cascadeLevel);
-    Sound.explosion();
-    haptic('heavy');
+    registerCombo(cascadeLevel);
+    Sound.explosion(); haptic('heavy');
     state.stats.bestCombo = Math.max(state.stats.bestCombo, cascadeLevel);
 
     await wait(300);
@@ -1017,7 +1421,35 @@
     await continueCascade(cascadeLevel + 1);
   }
 
+  async function collectIngredients() {
+    if (!currentLevel || currentLevel.mode !== 'ingredient') return;
+    const goal = currentLevel.goals.find((g) => g.type === 'ingredient');
+    if (!goal || goal.current >= goal.target) return;
+    let found = false;
+    for (let c = 0; c < SIZE; c++) {
+      if (board[SIZE - 1][c] === 'ING') {
+        const el = tileEls[SIZE - 1][c];
+        if (el) el.classList.add('matched');
+        found = true;
+      }
+    }
+    if (!found) return;
+    await wait(220);
+    for (let c = 0; c < SIZE; c++) {
+      if (board[SIZE - 1][c] === 'ING') {
+        removeTileAt(SIZE - 1, c);
+        goal.current++;
+        Sound.pop(); haptic('success');
+        showFloatingLabel('DELIVERED!');
+      }
+    }
+    renderGoalPanel();
+    await collapseAndRefill();
+    await wait(FALL_ANIM_MS);
+  }
+
   async function continueCascade(cascadeLevel) {
+    await collectIngredients();
     const analysis = analyzeMatches(board);
     if (analysis.matchedCells.size === 0) return;
     await performMatchResolution(analysis.matchedCells, analysis.specials, cascadeLevel);
@@ -1121,7 +1553,8 @@
   }
 
   function onBoosterBarClick(btn) {
-    if (busy || !currentLevel) return;
+    if (busy || !currentLevel || paused) return;
+    resetIdleTimer();
     const type = btn.dataset.booster;
     if ((state.boosters[type] || 0) <= 0) { showToast('Нет бустера в запасе'); Sound.error(); haptic('error'); return; }
     if (type === 'shuffle') { useShuffleBooster(); return; }
@@ -1149,7 +1582,7 @@
     const type = armedBooster;
     armedBooster = null;
     document.querySelectorAll('.booster-btn').forEach((b) => b.classList.remove('active-select'));
-    if (board[r][c] === null || board[r][c] === undefined) return;
+    if (board[r][c] === null || board[r][c] === undefined || board[r][c] === 'ING') return;
     state.boosters[type] -= 1;
     state.stats.boostersUsed += 1;
     saveState();
@@ -1203,32 +1636,68 @@
     }, 900);
   }
 
-  /* ---------- HUD / цели ---------- */
+  /* ---------- HUD / цели (мультирежимные) ---------- */
   function renderGoalPanel() {
     const panel = document.getElementById('goalPanel');
     panel.innerHTML = '';
     currentLevel.goals.forEach((g) => {
       const chip = document.createElement('div');
-      chip.className = 'goal-chip' + (g.current >= g.target ? ' complete' : '');
-      chip.textContent = `${FRUIT_EMOJI[g.fruit]} ${Math.min(g.current, g.target)}/${g.target}`;
+      const done = g.type === 'score' ? currentLevel.score >= g.target : g.current >= g.target;
+      chip.className = 'goal-chip' + (done ? ' complete' : '');
+      let label = '';
+      if (g.type === 'collect') label = `${FRUIT_EMOJI[g.fruit]} ${Math.min(g.current, g.target)}/${g.target}`;
+      else if (g.type === 'score') label = `⭐ ${Math.min(currentLevel.score, g.target)}/${g.target}`;
+      else if (g.type === 'ice') label = `🧊 ${Math.min(g.current, g.target)}/${g.target}`;
+      else if (g.type === 'ingredient') label = `${currentLevel.ingredientEmoji} ${Math.min(g.current, g.target)}/${g.target}`;
+      else if (g.type === 'combo') label = `🔥 ${Math.min(g.current, g.target)}/${g.target}`;
+      chip.textContent = label;
       panel.appendChild(chip);
     });
   }
+
   function updateGameHUD() {
     scoreEl.textContent = currentLevel.score;
-    movesEl.textContent = currentLevel.movesLeft;
+    const isTimeAttack = currentLevel.mode === 'timeattack';
+    document.getElementById('movesPill').classList.toggle('hidden', isTimeAttack);
+    document.getElementById('timePill').classList.toggle('hidden', !isTimeAttack);
+    if (isTimeAttack) {
+      timeEl.textContent = Math.max(0, currentLevel.timeLeft);
+    } else {
+      movesEl.textContent = currentLevel.movesLeft;
+    }
+  }
+
+  function goalsComplete() {
+    return currentLevel.goals.every((g) => g.type === 'score' ? currentLevel.score >= g.target : g.current >= g.target);
+  }
+
+  /* ---------- Таймер режима "На время" ---------- */
+  function stopTimeAttackTimer() {
+    if (timeAttackTimer) { clearInterval(timeAttackTimer); timeAttackTimer = null; }
+  }
+  function startTimeAttackTimer() {
+    stopTimeAttackTimer();
+    timeAttackTimer = setInterval(() => {
+      if (!currentLevel || paused || busy) return;
+      currentLevel.timeLeft--;
+      updateGameHUD();
+      if (currentLevel.timeLeft <= 0) {
+        stopTimeAttackTimer();
+        if (goalsComplete()) winLevel(); else loseLevel();
+      }
+    }, 1000);
   }
 
   /* ---------- Победа / поражение ---------- */
   function afterMoveChecks() {
     if (!currentLevel) return;
-    const allDone = currentLevel.goals.every((g) => g.current >= g.target);
-    if (allDone) { winLevel(); return; }
-    if (currentLevel.movesLeft <= 0) { loseLevel(); return; }
+    if (goalsComplete()) { winLevel(); return; }
+    if (currentLevel.mode !== 'timeattack' && currentLevel.movesLeft <= 0) { loseLevel(); return; }
     if (!hasAnyValidMoveBoard()) { reshuffleBoard(); }
   }
 
   function winLevel() {
+    stopTimeAttackTimer();
     const par = currentLevel.par;
     let stars = 1;
     if (currentLevel.score >= par * 1.6) stars = 3; else if (currentLevel.score >= par * 1.15) stars = 2;
@@ -1236,6 +1705,7 @@
     state.levelStars[currentLevel.level] = Math.max(prevStars, stars);
     state.unlockedLevel = Math.max(state.unlockedLevel, Math.min(LEVEL_COUNT, currentLevel.level + 1));
     state.stats.wins += 1;
+    incrementQuest('levels', 1);
     const coinsAward = stars * 40 + Math.floor(currentLevel.score / 50);
     addCoins(coinsAward);
     submitScoreToLeaderboard(currentLevel.score);
@@ -1245,6 +1715,7 @@
   }
 
   function loseLevel() {
+    stopTimeAttackTimer();
     submitScoreToLeaderboard(currentLevel.score);
     saveState();
     Sound.lose(); haptic('error');
@@ -1252,7 +1723,7 @@
   }
 
   function showResultModal(win, stars, coins) {
-    document.getElementById('resultTitle').textContent = win ? 'Уровень пройден!' : 'Не хватило ходов';
+    document.getElementById('resultTitle').textContent = win ? 'Уровень пройден!' : (currentLevel.mode === 'timeattack' ? 'Время вышло' : 'Не хватило ходов');
     document.getElementById('resultStars').textContent = win ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '💔';
     document.getElementById('resultScore').textContent = currentLevel.score;
     document.getElementById('resultCoins').textContent = win ? ('+' + coins + ' 🪙') : '+0 🪙';
@@ -1262,12 +1733,14 @@
 
   /* ---------- Запуск уровня ---------- */
   function startLevel(n) {
-    if (state.lives <= 0) { showToast('Нет жизней ❤️ Ждите восстановления или купите в магазине'); openModal('modalShop'); return; }
+    stopTimeAttackTimer();
+    if (state.lives <= 0 && !state.infiniteLives) { showToast('Нет жизней ❤️ Ждите восстановления или купите в магазине'); openModal('modalShop'); return; }
     if (!spendLife()) return;
     currentLevel = levelConfig(n);
     currentLevel.score = 0;
-    currentLevel.movesLeft = currentLevel.moves;
-    if (state.boosters.moves) {
+    currentLevel.movesLeft = (currentLevel.mode === 'timeattack') ? Infinity : currentLevel.moves;
+    currentLevel.timeLeft = 60;
+    if (state.boosters.moves && currentLevel.mode !== 'timeattack') {
       currentLevel.movesLeft += state.boosters.moves * 5;
       showToast('+' + (state.boosters.moves * 5) + ' бонусных ходов');
       state.boosters.moves = 0;
@@ -1276,26 +1749,36 @@
     armedBooster = null;
     selected = null;
     busy = false;
+    paused = false;
+    resetIdleTimer();
     showScreen('screenGame');
     buildBoardForLevel(currentLevel);
     renderGoalPanel();
     updateGameHUD();
     renderBoosterCounts();
+    if (currentLevel.mode === 'timeattack') startTimeAttackTimer();
   }
 
   /* ---------- Пауза / результат / шэринг ---------- */
   document.getElementById('btnPause').addEventListener('click', () => {
     if (!currentLevel) return;
+    paused = true;
     document.getElementById('modalPause').classList.remove('hidden');
   });
-  document.getElementById('btnResume').addEventListener('click', () => document.getElementById('modalPause').classList.add('hidden'));
+  document.getElementById('btnResume').addEventListener('click', () => {
+    paused = false;
+    resetIdleTimer();
+    document.getElementById('modalPause').classList.add('hidden');
+  });
   document.getElementById('btnPauseRestart').addEventListener('click', () => {
     document.getElementById('modalPause').classList.add('hidden');
     if (currentLevel) startLevel(currentLevel.level);
   });
   document.getElementById('btnPauseExit').addEventListener('click', () => {
     document.getElementById('modalPause').classList.add('hidden');
+    stopTimeAttackTimer();
     currentLevel = null;
+    paused = false;
     showScreen('screenMenu');
   });
 
@@ -1311,22 +1794,23 @@
   document.getElementById('btnShareResult').addEventListener('click', shareResult);
 
   function shareResult() {
-    const text = `Я набрал ${currentLevel.score} очков в Fruit Blast на уровне ${currentLevel.level}! 🍎🍇🍓`;
+    const text = `Я набрал ${currentLevel.score} очков в Fruit Blitz на уровне ${currentLevel.level}! 🍎🍇🍓`;
     if (tg && tg.openTelegramLink) {
       try {
         tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent('https://t.me/') + '&text=' + encodeURIComponent(text));
         return;
       } catch (e) { /* fallthrough */ }
     }
-    if (navigator.share) { navigator.share({ title: 'Fruit Blast', text }).catch(() => {}); return; }
+    if (navigator.share) { navigator.share({ title: 'Fruit Blitz', text }).catch(() => {}); return; }
     if (navigator.clipboard) { navigator.clipboard.writeText(text).then(() => showToast('Результат скопирован!')); return; }
     showToast(text);
   }
 
   /* ============================================================
-     12. СТАРТ ПРИЛОЖЕНИЯ
+     15. СТАРТ ПРИЛОЖЕНИЯ
      ============================================================ */
   initTelegram();
+  applyEquippedSkin();
   renderPlayerBadge();
   showScreen('screenMenu');
   renderResources();
