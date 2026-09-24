@@ -27,7 +27,7 @@
    * Дополнительные 50px — гарантированный зазор, чтобы аватар, имя и кнопки меню
    * никогда не заезжали под системную плашку, даже если она перекрывает контент сильнее insets.
    */
-  --safe-top: calc(var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px)) + 50px);
+  --safe-top: calc(var(--tg-safe-area-inset-top, env(safe-area-inset-top, 0px)) + 45px);
   --safe-bottom: var(--tg-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
@@ -311,7 +311,13 @@ html, body {
 .booster-count { position: absolute; bottom: -4px; right: -4px; background: var(--gold); color: #3a2500; font-size: 10px; font-weight: 800; border-radius: 8px; padding: 1px 5px; }
 
 /* ---------------- Оверлеи / модалки ---------------- */
-.overlay { position: fixed; inset: 0; background: rgba(6,3,16,0.8); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+.overlay {
+  position: fixed; inset: 0; background: rgba(6,3,16,0.8); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+  /* Safe-area сверху: у высоких модалок (например, wide-card админки) заголовок и крестик
+     не должны прятаться под системную плашку Telegram с кнопкой "Закрыть" */
+  padding: 20px; padding-top: calc(var(--tg-safe-area-inset-top, 0px) + 45px);
+}
 .overlay.hidden { display: none; }
 .overlay-card {
   position: relative; background: rgba(30,16,56,0.85); border: 1px solid var(--glass-border); backdrop-filter: blur(18px);
@@ -414,3 +420,47 @@ html, body {
 /* ---------------- Экран техработ ---------------- */
 .maintenance-screen { z-index: 500; background: rgba(6,3,16,0.96); }
 .maintenance-icon { font-size: 52px; margin-bottom: 8px; }
+
+/* ---------------- Поля с текущими значениями (коины/кристаллы/уровень) ---------------- */
+.admin-field-row {
+  display: grid; grid-template-columns: 74px 1fr; grid-template-areas: "label label" "input input" "btn1 btn2";
+  gap: 6px; width: 100%; background: var(--panel); border: 1px solid var(--glass-border);
+  border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; text-align: left;
+}
+.admin-field-row label { grid-area: label; font-size: 11px; color: var(--tg-hint); font-weight: 700; }
+.admin-field-row input {
+  grid-area: input; width: 100%; border-radius: 8px; border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.3); color: #fff; padding: 8px; font-size: 14px; font-weight: 800; font-family: inherit;
+}
+.admin-field-row button {
+  border: none; border-radius: 8px; padding: 8px 4px; font-size: 11px; font-weight: 800; cursor: pointer;
+  background: var(--panel-2); color: #fff;
+}
+.admin-field-row button:first-of-type { grid-area: btn1; }
+.admin-field-row button:last-of-type { grid-area: btn2; background: linear-gradient(135deg, var(--gold), #ff9f43); color: #3a2500; }
+.admin-field-row button.wide { grid-column: span 2; grid-area: btn1 / btn1 / btn2 / btn2; background: linear-gradient(135deg, var(--accent), #b24dff); color: #fff; }
+
+/* ---------------- Список «Все зарегистрированные игроки» ---------------- */
+.admin-list-title { font-size: 13px; color: var(--tg-hint); text-transform: uppercase; letter-spacing: 0.05em; margin: 16px 0 8px; text-align: left; width: 100%; }
+.admin-all-players-list {
+  width: 100%; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+  background: rgba(0,0,0,0.15); border: 1px solid var(--glass-border); border-radius: 12px; padding: 6px;
+}
+.admin-player-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer;
+  background: rgba(255,255,255,0.03); transition: background 0.15s ease;
+}
+.admin-player-row:active { background: rgba(255,255,255,0.1); }
+.admin-player-row.selected { background: rgba(255,79,163,0.18); box-shadow: inset 0 0 0 1px var(--accent); }
+.admin-player-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), #b24dff); display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: #fff;
+}
+.admin-player-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.admin-player-row-info b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-row-username { color: var(--tg-hint); font-weight: 500; }
+.admin-row-sub { font-size: 10px; color: var(--tg-hint); }
+.admin-row-status { font-size: 10px; font-weight: 800; flex-shrink: 0; white-space: nowrap; }
+.admin-row-status.active { color: #6fe3a0; }
+.admin-row-status.banned { color: #ff6b81; }
