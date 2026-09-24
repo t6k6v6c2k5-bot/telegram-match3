@@ -232,6 +232,11 @@
       lastWheelSpin: null,
       wheelStreak: 0,
       dailyQuests: null,
+      // Метка времени последнего известного состояния на сервере (server player.updatedAt).
+      // Используется для двустороннего merge в syncProgressWithServer(): если сервер "новее"
+      // этого значения — значит его поменяли ИЗВНЕ (админ-панель), и клиент должен подтянуть
+      // изменения, а не затирать их своим локальным прогрессом.
+      lastServerUpdatedAt: 0,
       leaderboard: [
         { name: 'Алекс', score: 18400 },
         { name: 'Мария', score: 15200 },
@@ -769,14 +774,67 @@
   }
 
   /**
-   * Синхронизация со своим серверным профилем (data/players.json):
-   * 1) отдаёт актуальные coins/gems/lives/уровень на сервер, чтобы админка видела реальные
-   *    данные, а не 0/null (главный баг, который чинит этот эндпоинт-вызов);
-   * 2) проверяет бан — если сервер вернул 403, показываем блокирующий экран.
-   * Вызывается при старте и после каждой победы/поражения на уровне.
+   * Синхронизация со своим серверным профилем (data/players.json) — ДВУСТОРОННЯЯ.
+   *
+   * БАГ, который это чинит: раньше функция только ОТПРАВЛЯЛА (push) локальный прогресс на
+   * сервер и никогда не читала его обратно. Из-за этого монеты/кристаллы, начисленные игроку
+   * через админ-панель, сохранялись в players.json, но сам игрок их не видел — его следующий
+   * же sync (при заходе в игру или после уровня) затирал серверное значение своим старым
+   * локальным. Начисление админом "не прибавлялось" игроку.
+   *
+   * Исправление — merge по времени:
+   *   1) PULL: спрашиваем сервер, какой там player.updatedAt.
+   *   2) Если серверная запись новее, чем state.lastServerUpdatedAt (последнее известное ЭТОМУ
+   *      устройству состояние) — значит изменения внесли ИЗВНЕ (админ или другое устройство).
+   *      Подтягиваем coins/gems/lives/уровень с сервера в локальный state.
+   *   3) PUSH: в любом случае отправляем актуальное (возможно только что подтянутое) состояние
+   *      обратно и запоминаем новый updatedAt — чтобы следующий pull не спутал наш же push
+   *      с "чужим" изменением.
+   *
+   * Заодно проверяет бан (403) — показывает блокирующий экран.
    */
   async function syncProgressWithServer() {
     if (playerId === 'guest') return;
+
+    // 1) PULL — узнаём текущее серверное состояние игрока
+    const pullParams = new URLSearchParams({
+      telegram_id: playerId,
+      name: telegramUser ? (telegramUser.first_name || '') : '',
+      username: telegramUser ? (telegramUser.username || '') : ''
+    });
+    const pull = await apiFetch('/api/player-sync?' + pullParams.toString());
+
+    if (pull.status === 403 || (pull.data && pull.data.player && pull.data.player.isBanned)) {
+      document.getElementById('bannedScreen').classList.remove('hidden');
+      return;
+    }
+
+    if (pull.ok && pull.data && pull.data.success) {
+      const sp = pull.data.player;
+      if (sp.isBanned) {
+        document.getElementById('bannedScreen').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('bannedScreen').classList.add('hidden');
+
+      if (state.lastServerUpdatedAt > 0 && (sp.updatedAt || 0) > state.lastServerUpdatedAt) {
+        // Сервер новее — значит, кто-то (админ) поменял данные снаружи. Подтягиваем их.
+        // Условие state.lastServerUpdatedAt > 0 защищает НОВОГО игрока: при самом первом
+        // запуске сервер только что создал ему запись с нулями (getOrCreatePlayer), и без
+        // этой проверки мы бы тут же затёрли стартовые 300🪙/25💎 нулями с сервера.
+        state.coins = sp.coins;
+        state.gems = sp.gems;
+        if (!state.infiniteLives) state.lives = sp.lives;
+        state.unlockedLevel = Math.max(1, sp.bestLevel || 1);
+        state.lastServerUpdatedAt = sp.updatedAt;
+        saveState();
+        renderResources();
+        if (document.getElementById('screenLevels').classList.contains('active')) renderLevelsGrid();
+        showToast('Данные аккаунта обновлены администратором 🔄');
+      }
+    }
+
+    // 2) PUSH — отправляем актуальное состояние обратно на сервер
     const { ok, status, data } = await apiFetch('/api/save-progress', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -794,7 +852,14 @@
       document.getElementById('bannedScreen').classList.remove('hidden');
       return;
     }
-    if (ok && data && data.success) document.getElementById('bannedScreen').classList.add('hidden');
+    if (ok && data && data.success) {
+      document.getElementById('bannedScreen').classList.add('hidden');
+      // Запоминаем новую метку времени СВОЕГО же push, чтобы при следующем sync не принять
+      // собственное обновление за "чужое" (иначе тост "обновлено администратором" вылезал бы
+      // на каждом запуске игры без всякой причины).
+      state.lastServerUpdatedAt = data.player.updatedAt;
+      saveState();
+    }
   }
 
   document.getElementById('floatingAdminBtn').addEventListener('click', () => { haptic('light'); openModal('modalAdminPro'); });
