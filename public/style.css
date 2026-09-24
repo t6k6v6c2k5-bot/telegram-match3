@@ -1,0 +1,285 @@
+:root {
+  --tg-bg: #17181c;
+  --tg-text: #ffffff;
+  --tg-hint: #8a8a8e;
+  --tg-button: #5288c1;
+  --tg-button-text: #ffffff;
+  --tg-secondary-bg: #232429;
+
+  --cell-bg: #26282f;
+  --board-bg: #1c1d22;
+  --accent: #5288c1;
+  --radius: 14px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overscroll-behavior: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100vh;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* ---------- Верхняя панель ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--tg-secondary-bg);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 70px;
+  background: var(--cell-bg);
+  border-radius: 10px;
+  padding: 6px 14px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--tg-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--tg-text);
+}
+
+.restart-btn {
+  margin-left: auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: var(--cell-bg);
+  color: var(--tg-text);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.restart-btn:active { transform: scale(0.9) rotate(-40deg); }
+
+/* ---------- Игровое поле ---------- */
+.board-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  gap: 4px;
+  width: min(94vw, 480px);
+  height: min(94vw, 480px);
+  background: var(--board-bg);
+  border-radius: var(--radius);
+  padding: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.cell {
+  position: relative;
+  border-radius: 10px;
+  background: var(--cell-bg);
+}
+
+.tile {
+  position: absolute;
+  inset: 2px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(18px, 5.6vw, 30px);
+  cursor: grab;
+  background: rgba(255,255,255,0.03);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+  transition: top 0.28s cubic-bezier(.34,1.4,.64,1), left 0.28s cubic-bezier(.34,1.4,.64,1),
+              transform 0.15s ease, opacity 0.22s ease;
+  will-change: top, left, transform;
+  touch-action: none;
+}
+
+.tile.selected {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgba(0,0,0,0.4);
+  z-index: 5;
+}
+
+.tile.matched {
+  animation: pop-out 0.28s ease forwards;
+  z-index: 4;
+}
+
+.tile.dropping {
+  animation: none;
+}
+
+.tile.spawning {
+  animation: fall-in 0.32s ease;
+}
+
+.tile.swap-invalid {
+  animation: shake 0.3s ease;
+}
+
+@keyframes pop-out {
+  0%   { transform: scale(1); opacity: 1; }
+  40%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes fall-in {
+  0%   { transform: translateY(-14px) scale(0.7); opacity: 0.4; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+/* ---------- Комбо-тост ---------- */
+.combo-toast {
+  position: fixed;
+  top: calc(var(--safe-top) + 70px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-10px);
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+  z-index: 50;
+}
+.combo-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.combo-toast.hidden { display: none; }
+
+/* ---------- Оверлеи ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,10,12,0.72);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+  transition: opacity 0.25s ease;
+}
+.overlay.hidden {
+  display: none;
+}
+
+.overlay-card {
+  background: var(--tg-secondary-bg);
+  border-radius: 18px;
+  padding: 32px 28px;
+  text-align: center;
+  width: min(340px, 100%);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+  animation: card-in 0.3s ease;
+}
+
+@keyframes card-in {
+  0%   { transform: translateY(16px) scale(0.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.overlay-card h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+.overlay-card h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+.subtitle {
+  color: var(--tg-hint);
+  font-size: 14px;
+  margin: 0 0 22px;
+}
+.final-score-label {
+  color: var(--tg-hint);
+  margin: 10px 0 2px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+.final-score {
+  font-size: 44px;
+  font-weight: 800;
+  margin: 0 0 22px;
+  color: var(--accent);
+}
+
+.primary-btn {
+  border: none;
+  background: var(--tg-button);
+  color: var(--tg-button-text);
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px 20px;
+  border-radius: 12px;
+  width: 100%;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.primary-btn:active {
+  transform: scale(0.97);
+  filter: brightness(0.92);
+}
+
+/* ---------- Малые экраны ---------- */
+@media (max-width: 360px) {
+  .stat { min-width: 58px; padding: 6px 10px; }
+  .stat-value { font-size: 17px; }
+}
