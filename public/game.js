@@ -15,11 +15,43 @@
     try {
       tg.ready();
       tg.expand();
+      // Разворачиваем на весь экран (Bot API 8.0+, поддерживается не всеми клиентами)
+      if (typeof tg.requestFullscreen === 'function') tg.requestFullscreen();
       if (typeof tg.enableClosingConfirmation === 'function') tg.enableClosingConfirmation();
       if (typeof tg.disableVerticalSwipes === 'function') tg.disableVerticalSwipes();
+
+      // Красим системную шапку и фон Telegram в тон дизайна — без этого при разворачивании
+      // сверху/снизу видны белые или чёрные полосы поверх нашего градиента.
+      if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor('#1a102f');
+      if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor('#1a102f');
+
       applyTelegramTheme();
+      applySafeArea();
       tg.onEvent('themeChanged', applyTelegramTheme);
+      // safeAreaChanged/contentSafeAreaChanged/viewportChanged — на случай, если панель Telegram
+      // (кнопка "Закрыть", системная шторка) меняет высоту уже после первой отрисовки.
+      tg.onEvent('safeAreaChanged', applySafeArea);
+      tg.onEvent('contentSafeAreaChanged', applySafeArea);
+      tg.onEvent('viewportChanged', applySafeArea);
     } catch (e) { console.warn('tg init error', e); }
+  }
+
+  /**
+   * Синхронизирует реальные отступы safe area, которые сообщает Telegram (tg.safeAreaInset /
+   * tg.contentSafeAreaInset, доступны с Bot API 8.0), с CSS-переменной --tg-safe-area-inset-top.
+   * Именно это значение (а не только env(safe-area-inset-top) от самой ОС) отвечает за высоту
+   * нативной плашки Telegram с кнопкой "Закрыть" поверх Mini App.
+   */
+  function applySafeArea() {
+    if (!tg) return;
+    const root = document.documentElement.style;
+    const sa = tg.safeAreaInset || {};
+    const csa = tg.contentSafeAreaInset || {};
+    // Берём максимум из обоих источников, чтобы учесть и системную шапку ОС, и шапку самого Telegram
+    const top = Math.max(sa.top || 0, csa.top || 0);
+    const bottom = Math.max(sa.bottom || 0, csa.bottom || 0);
+    root.setProperty('--tg-safe-area-inset-top', top + 'px');
+    root.setProperty('--tg-safe-area-inset-bottom', bottom + 'px');
   }
 
   function applyTelegramTheme() {
