@@ -21,6 +21,14 @@
 
   <!-- ===================== ГЛАВНОЕ МЕНЮ ===================== -->
   <section id="screenMenu" class="screen active">
+    <div class="menu-bg-fruits" aria-hidden="true">
+      <span style="--fd:14s;--fx:6%;--fdelay:0s">🍎</span>
+      <span style="--fd:18s;--fx:22%;--fdelay:2s">🍇</span>
+      <span style="--fd:16s;--fx:40%;--fdelay:4s">🍓</span>
+      <span style="--fd:20s;--fx:58%;--fdelay:1s">🍊</span>
+      <span style="--fd:15s;--fx:76%;--fdelay:3s">🫐</span>
+      <span style="--fd:19s;--fx:90%;--fdelay:5s">🍌</span>
+    </div>
     <div class="player-badge">
       <div id="playerAvatar" class="player-avatar">🙂</div>
       <div class="player-info">
@@ -319,6 +327,35 @@
         <button class="secondary-btn" id="btnShareResult">📤 Поделиться</button>
       </div>
     </div>
+  </div>
+
+  <!-- ===================== МОДАЛКА: ИНТРО УРОВНЯ ===================== -->
+  <div id="modalLevelIntro" class="overlay hidden level-intro-overlay">
+    <div class="overlay-card level-intro-card">
+      <div class="level-intro-badge" id="introLevelBadge">1</div>
+      <h2 id="introLevelTitle">Уровень 1</h2>
+      <p class="subtitle" id="introModeLabel">Сбор фруктов</p>
+      <div id="introGoalsRow" class="intro-goals-row"></div>
+      <button class="primary-btn" id="btnStartLevelIntro">▶ Начать</button>
+    </div>
+  </div>
+
+  <!-- ===================== КОНФЕТТИ ПРИ ПОБЕДЕ ===================== -->
+  <canvas id="confettiCanvas" class="confetti-canvas"></canvas>
+
+  <!-- ===================== СПЛЭШ-ЭКРАН ЗАГРУЗКИ ===================== -->
+  <div id="splashScreen" class="splash-screen">
+    <div class="splash-fruits">
+      <span style="--d:0s;--x:8%">🍎</span>
+      <span style="--d:0.3s;--x:28%">🍇</span>
+      <span style="--d:0.6s;--x:50%">🍓</span>
+      <span style="--d:0.9s;--x:72%">🍊</span>
+      <span style="--d:1.2s;--x:90%">🫐</span>
+    </div>
+    <h1 class="game-logo splash-logo"><span>FRUIT</span><span class="logo-accent">BLITZ</span></h1>
+    <div class="splash-spinner"></div>
+    <p id="splashStatus" class="splash-status">Загрузка...</p>
+    <button id="btnSplashContinue" class="primary-btn splash-continue-btn hidden">▶ Играть</button>
   </div>
 
 </div>
