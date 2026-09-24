@@ -6,7 +6,7 @@
   'use strict';
 
   /* ============================================================
-     0. TELEGRAM WEBAPP
+     0. TELEGRAM WEBAPP + ПРОФИЛЬ ИГРОКА
      ============================================================ */
   const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 
@@ -15,6 +15,8 @@
     try {
       tg.ready();
       tg.expand();
+      if (typeof tg.enableClosingConfirmation === 'function') tg.enableClosingConfirmation();
+      if (typeof tg.disableVerticalSwipes === 'function') tg.disableVerticalSwipes();
       applyTelegramTheme();
       tg.onEvent('themeChanged', applyTelegramTheme);
     } catch (e) { console.warn('tg init error', e); }
@@ -24,12 +26,8 @@
     if (!tg || !tg.themeParams) return;
     const root = document.documentElement.style;
     const tp = tg.themeParams;
-    if (tp.bg_color) root.setProperty('--tg-bg', tp.bg_color);
-    if (tp.text_color) root.setProperty('--tg-text', tp.text_color);
-    if (tp.hint_color) root.setProperty('--tg-hint', tp.hint_color);
     if (tp.button_color) root.setProperty('--accent', tp.button_color);
     if (tp.button_text_color) root.setProperty('--tg-button-text', tp.button_text_color);
-    if (tp.secondary_bg_color) root.setProperty('--tg-secondary-bg', tp.secondary_bg_color);
   }
 
   function haptic(kind) {
@@ -40,6 +38,38 @@
       else if (kind === 'error') tg.HapticFeedback.notificationOccurred('error');
       else tg.HapticFeedback.impactOccurred(kind || 'light');
     } catch (e) { /* noop */ }
+  }
+
+  function getTelegramUser() {
+    try {
+      if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return tg.initDataUnsafe.user;
+    } catch (e) { /* noop */ }
+    return null;
+  }
+  const telegramUser = getTelegramUser();
+  const playerId = (telegramUser && telegramUser.id) ? telegramUser.id : 'guest';
+
+  function renderPlayerBadge() {
+    const nameEl = document.getElementById('playerName');
+    const avatarEl = document.getElementById('playerAvatar');
+    if (!nameEl || !avatarEl) return;
+    if (telegramUser) {
+      const full = (telegramUser.first_name || '') + (telegramUser.last_name ? ' ' + telegramUser.last_name : '');
+      const displayName = full.trim() || ('@' + (telegramUser.username || 'player'));
+      nameEl.textContent = displayName;
+      if (telegramUser.photo_url) {
+        avatarEl.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = telegramUser.photo_url;
+        img.alt = 'avatar';
+        avatarEl.appendChild(img);
+      } else {
+        avatarEl.textContent = displayName.charAt(0).toUpperCase();
+      }
+    } else {
+      nameEl.textContent = 'Гость';
+      avatarEl.textContent = '🙂';
+    }
   }
 
   /* ============================================================
@@ -113,22 +143,16 @@
       noiseBurst(0.35, 0.35, 0, 900);
       tone(90, 0.32, 'sine', 0.4, 0, 40);
     },
-    booster() {
-      tone(300, 0.22, 'square', 0.18, 0, 900);
-    },
-    win() {
-      [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, 'triangle', 0.22, i * 0.12));
-    },
-    lose() {
-      [400, 340, 260].forEach((f, i) => tone(f, 0.32, 'sawtooth', 0.18, i * 0.14));
-    },
+    booster() { tone(300, 0.22, 'square', 0.18, 0, 900); },
+    win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.28, 'triangle', 0.22, i * 0.12)); },
+    lose() { [400, 340, 260].forEach((f, i) => tone(f, 0.32, 'sawtooth', 0.18, i * 0.14)); },
     error() { tone(180, 0.18, 'square', 0.15); }
   };
 
   /* ============================================================
-     2. СОСТОЯНИЕ / СОХРАНЕНИЕ
+     2. СОСТОЯНИЕ / СОХРАНЕНИЕ (привязано к ID игрока)
      ============================================================ */
-  const SAVE_KEY = 'fruitblast_save_v1';
+  const SAVE_KEY = `match3_player_${playerId}`;
   const MAX_LIVES = 5;
   const LIFE_REGEN_MS = 15 * 60 * 1000;
 
@@ -140,9 +164,9 @@
       nextLifeAt: null,
       sound: true,
       unlockedLevel: 1,
-      levelStars: {},        // {levelNum: stars}
+      levelStars: {},
       boosters: { hammer: 3, shuffle: 2, rocketBoost: 2 },
-      lastWheelSpin: null,   // 'YYYY-MM-DD'
+      lastWheelSpin: null,
       wheelStreak: 0,
       leaderboard: [
         { name: 'Алекс', score: 18400 },
@@ -150,7 +174,7 @@
         { name: 'Женя', score: 12750 },
         { name: 'Тимур', score: 9800 }
       ],
-      stats: { totalCleared: 0, bestCombo: 0, boostersUsed: 0, totalCoinsEarned: 0, wins: 0 }
+      stats: { totalCleared: 0, bestCombo: 0, boostersUsed: 0, totalCoinsEarned: 0, wins: 0, bestScore: 0 }
     };
   }
 
@@ -174,7 +198,7 @@
   }
 
   /* ============================================================
-     3. НАВИГАЦИЯ / ГЛОБАЛЬНЫЙ TOAST
+     3. НАВИГАЦИЯ: ЭКРАНЫ + МОДАЛКИ + TOAST
      ============================================================ */
   const screens = {};
   document.querySelectorAll('.screen').forEach((el) => { screens[el.id] = el; });
@@ -184,10 +208,29 @@
     if (screens[id]) screens[id].classList.add('active');
     document.getElementById('resourceBar').style.display = (id === 'screenGame') ? 'none' : 'flex';
     if (id === 'screenLevels') renderLevelsGrid();
-    if (id === 'screenAchievements') renderAchievements();
-    if (id === 'screenLeaderboard') renderLeaderboard();
     renderResources();
   }
+
+  function openModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('hidden');
+    if (id === 'modalAchievements') renderAchievements();
+    if (id === 'modalLeaderboard') renderLeaderboard();
+    if (id === 'modalWheel') refreshWheelState();
+    renderResources();
+  }
+  function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('hidden');
+  }
+
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeModal(btn.dataset.close));
+  });
+  document.querySelectorAll('[data-back]').forEach((btn) => {
+    btn.addEventListener('click', () => showScreen(btn.dataset.back));
+  });
 
   let globalToastEl = null;
   function showToast(msg) {
@@ -195,7 +238,7 @@
       globalToastEl = document.createElement('div');
       globalToastEl.className = 'combo-toast';
       globalToastEl.style.position = 'fixed';
-      globalToastEl.style.top = 'calc(var(--safe-top) + 60px)';
+      globalToastEl.style.top = 'calc(var(--safe-top) + 64px)';
       globalToastEl.style.zIndex = '300';
       document.body.appendChild(globalToastEl);
     }
@@ -208,10 +251,6 @@
       setTimeout(() => globalToastEl.classList.add('hidden'), 250);
     }, 1400);
   }
-
-  document.querySelectorAll('[data-back]').forEach((btn) => {
-    btn.addEventListener('click', () => showScreen(btn.dataset.back));
-  });
 
   /* ============================================================
      4. РЕСУРСЫ: РЕНДЕР, ЖИЗНИ, ЗВУК-ТОГГЛ
@@ -229,19 +268,21 @@
     } else {
       timerEl.textContent = '';
     }
-    updateSoundIcon();
+    updateSoundIcons();
   }
 
-  function updateSoundIcon() {
-    document.querySelectorAll('#soundToggleBtn').forEach((b) => { b.textContent = state.sound ? '🔊' : '🔇'; });
+  function updateSoundIcons() {
+    document.querySelectorAll('#soundToggleBtn, #soundToggleBtnGame').forEach((b) => { b.textContent = state.sound ? '🔊' : '🔇'; });
   }
 
-  document.getElementById('soundToggleBtn').addEventListener('click', () => {
+  function toggleSound() {
     state.sound = !state.sound;
     saveState();
-    updateSoundIcon();
+    updateSoundIcons();
     if (state.sound) { ensureAudio(); Sound.click(); }
-  });
+  }
+  document.getElementById('soundToggleBtn').addEventListener('click', toggleSound);
+  document.getElementById('soundToggleBtnGame').addEventListener('click', toggleSound);
 
   function tickLives() {
     const now = Date.now();
@@ -273,26 +314,41 @@
   function addGems(n) { state.gems += n; saveState(); renderResources(); }
 
   /* ============================================================
-     5. УРОВНИ: ГЕНЕРАЦИЯ, КАРТА, ЦЕЛИ
+     5. УРОВНИ: ДИНАМИЧЕСКИЙ РАЗМЕР ПОЛЯ И СЛОЖНОСТЬ
      ============================================================ */
-  const FRUIT_EMOJI = ['🍎', '🍌', '🍇', '🍓', '🍊', '🫐'];
+  const FRUIT_EMOJI = ['🍎', '🍌', '🍓', '🍇', '🍊', '🫐'];
   const LEVEL_COUNT = 24;
 
+  // Уровень 1: 4x4 (3 вида фишек) · Уровень 2: 5x5 (4 вида)
+  // Уровень 3: 6x6 + лёд · Уровень 4: 7x7 + шоколад · Уровень 5+: 8x8 полная сложность
   function levelConfig(n) {
-    const moves = 16 + Math.floor(n / 3) * 2;
-    const goalsCount = n < 4 ? 1 : (n < 12 ? 2 : 3);
+    let size = 8;
+    if (n === 1) size = 4;
+    else if (n === 2) size = 5;
+    else if (n === 3) size = 6;
+    else if (n === 4) size = 7;
+
+    let fruitCount = 6;
+    if (n === 1) fruitCount = 3;
+    else if (n === 2) fruitCount = 4;
+    else if (n === 3) fruitCount = 5;
+
+    const moves = 14 + Math.floor(n / 2) * 2;
+    const cellsTotal = size * size;
+    const goalsCount = n < 3 ? 1 : (n < 8 ? 2 : 3);
     const goals = [];
-    const usedFruit = [];
+    const used = [];
     for (let i = 0; i < goalsCount; i++) {
       let f;
-      do { f = Math.floor(Math.random() * FRUIT_EMOJI.length); } while (usedFruit.includes(f));
-      usedFruit.push(f);
-      goals.push({ fruit: f, target: 10 + n * 2 + i * 4, current: 0 });
+      do { f = Math.floor(Math.random() * fruitCount); } while (used.includes(f));
+      used.push(f);
+      const target = Math.max(6, Math.round(cellsTotal * 0.35) + n * 2 + i * 3);
+      goals.push({ fruit: f, target, current: 0 });
     }
-    const iceCount = n >= 3 ? Math.min(10, 2 + Math.floor(n / 2)) : 0;
-    const chocoCount = n >= 6 ? Math.min(8, Math.floor((n - 4) / 2)) : 0;
+    const iceCount = n >= 3 ? Math.min(Math.floor(cellsTotal * 0.12), 2 + n) : 0;
+    const chocoCount = n >= 4 ? Math.min(Math.floor(cellsTotal * 0.1), 1 + Math.floor(n / 2)) : 0;
     const par = moves * 45;
-    return { level: n, moves, goals, iceCount, chocoCount, par };
+    return { level: n, size, fruitCount, moves, goals, iceCount, chocoCount, par };
   }
 
   function renderLevelsGrid() {
@@ -300,12 +356,13 @@
     grid.innerHTML = '';
     for (let n = 1; n <= LEVEL_COUNT; n++) {
       const locked = n > state.unlockedLevel;
+      const cfg = levelConfig(n);
       const btn = document.createElement('button');
       btn.className = 'level-node' + (locked ? ' locked' : '') + (n === state.unlockedLevel ? ' current' : '');
       const stars = state.levelStars[n] || 0;
-      btn.innerHTML = `<div>${locked ? '🔒' : n}</div><div class="stars">${locked ? '' : '⭐'.repeat(stars) + '☆'.repeat(3 - stars)}</div>`;
+      btn.innerHTML = `<div>${locked ? '🔒' : n}</div><div class="stars">${locked ? '' : '⭐'.repeat(stars) + '☆'.repeat(3 - stars)}</div><div class="size-tag">${cfg.size}×${cfg.size}</div>`;
       if (!locked) {
-        btn.addEventListener('click', () => startLevel(n));
+        btn.addEventListener('click', () => { haptic('light'); startLevel(n); });
       }
       grid.appendChild(btn);
     }
@@ -343,8 +400,7 @@
      ============================================================ */
   function renderLeaderboard() {
     const list = document.getElementById('leaderboardList');
-    const myBest = Math.max(0, ...Object.values(state.levelStars).length ? [state.stats.bestScore || 0] : [0]);
-    const entries = state.leaderboard.slice().concat([{ name: 'Вы', score: state.stats.bestScore || 0, me: true }]);
+    const entries = state.leaderboard.slice().concat([{ name: telegramUser ? (telegramUser.first_name || 'Вы') : 'Вы', score: state.stats.bestScore || 0, me: true }]);
     entries.sort((a, b) => b.score - a.score);
     list.innerHTML = '';
     entries.forEach((e, i) => {
@@ -369,7 +425,7 @@
       const cost = parseInt(btn.dataset.cost, 10);
       const currency = btn.dataset.currency;
       const balance = currency === 'gems' ? state.gems : state.coins;
-      if (balance < cost) { showToast('Недостаточно ' + (currency === 'gems' ? 'кристаллов 💎' : 'монет 🪙')); Sound.error(); return; }
+      if (balance < cost) { showToast('Недостаточно ' + (currency === 'gems' ? 'кристаллов 💎' : 'монет 🪙')); Sound.error(); haptic('error'); return; }
       if (currency === 'gems') state.gems -= cost; else state.coins -= cost;
 
       if (item === 'hammer') state.boosters.hammer += 1;
@@ -402,12 +458,11 @@
 
   function todayStr() { return new Date().toISOString().slice(0, 10); }
 
-  document.getElementById('btnWheel').addEventListener('click', () => {
-    document.getElementById('modalWheel').classList.remove('hidden');
+  function refreshWheelState() {
     const canSpin = state.lastWheelSpin !== todayStr();
     document.getElementById('btnSpinWheel').disabled = !canSpin;
     document.getElementById('btnSpinWheel').textContent = canSpin ? 'Крутить' : 'Уже крутили сегодня ✔';
-  });
+  }
 
   document.getElementById('btnSpinWheel').addEventListener('click', () => {
     if (state.lastWheelSpin === todayStr()) return;
@@ -427,23 +482,23 @@
       Sound.win();
       haptic('success');
       showToast('Награда: ' + WHEEL_REWARDS[idx].label);
-      document.getElementById('btnSpinWheel').disabled = true;
-      document.getElementById('btnSpinWheel').textContent = 'Уже крутили сегодня ✔';
+      refreshWheelState();
     }, 3300);
   });
 
   /* ============================================================
      10. ПРИВЯЗКА КНОПОК ГЛАВНОГО МЕНЮ
      ============================================================ */
-  document.getElementById('btnPlay').addEventListener('click', () => showScreen('screenLevels'));
-  document.getElementById('btnShop').addEventListener('click', () => showScreen('screenShop'));
-  document.getElementById('btnLeaderboard').addEventListener('click', () => showScreen('screenLeaderboard'));
-  document.getElementById('btnAchievements').addEventListener('click', () => showScreen('screenAchievements'));
+  document.getElementById('btnPlay').addEventListener('click', () => { haptic('light'); showScreen('screenLevels'); });
+  document.getElementById('btnShop').addEventListener('click', () => { haptic('light'); openModal('modalShop'); });
+  document.getElementById('btnWheel').addEventListener('click', () => { haptic('light'); openModal('modalWheel'); });
+  document.getElementById('btnLeaderboard').addEventListener('click', () => { haptic('light'); openModal('modalLeaderboard'); });
+  document.getElementById('btnAchievements').addEventListener('click', () => { haptic('light'); openModal('modalAchievements'); });
 
   /* ============================================================
-     11. ИГРОВОЙ ДВИЖОК MATCH-3
+     11. ИГРОВОЙ ДВИЖОК MATCH-3 (динамический размер поля)
      ============================================================ */
-  const SIZE = 8;
+  let SIZE = 8;
   const SWAP_ANIM_MS = 220;
   const MATCH_ANIM_MS = 260;
   const FALL_ANIM_MS = 280;
@@ -465,7 +520,10 @@
 
   function key(r, c) { return r + ',' + c; }
   function wait(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-  function randType() { return Math.floor(Math.random() * FRUIT_EMOJI.length); }
+  function randType() {
+    const max = (currentLevel && currentLevel.fruitCount) ? currentLevel.fruitCount : FRUIT_EMOJI.length;
+    return Math.floor(Math.random() * max);
+  }
   function inBounds(pos) { return pos.row >= 0 && pos.row < SIZE && pos.col >= 0 && pos.col < SIZE; }
   function isAdjacent(a, b) { return (Math.abs(a.row - b.row) + Math.abs(a.col - b.col)) === 1; }
   function isSpecialType(v) { return typeof v === 'string' && v.indexOf('S_') === 0 && v !== 'S_CHOCO'; }
@@ -480,7 +538,8 @@
   function swapCellsInPlace(b, r1, c1, r2, c2) { const t = b[r1][c1]; b[r1][c1] = b[r2][c2]; b[r2][c2] = t; }
 
   function pickCommonFruitType() {
-    const counts = new Array(FRUIT_EMOJI.length).fill(0);
+    const max = (currentLevel && currentLevel.fruitCount) ? currentLevel.fruitCount : FRUIT_EMOJI.length;
+    const counts = new Array(max).fill(0);
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) { const v = board[r][c]; if (typeof v === 'number') counts[v]++; }
     let best = 0, bestCount = -1;
     counts.forEach((cnt, i) => { if (cnt > bestCount) { bestCount = cnt; best = i; } });
@@ -522,6 +581,7 @@
   }
 
   function buildBoardForLevel(cfg) {
+    SIZE = cfg.size;
     board = buildFruitOnlyBoard();
     icedSet = new Set();
     let placed = 0, guard = 0;
@@ -932,8 +992,7 @@
       const val = board[r] ? board[r][c] : undefined;
       if (isSpecialType(val)) {
         processed.add(k);
-        const targetType = (val === 'S_RAINBOW') ? null : null;
-        const extra = computeExplosionCells(r, c, val, targetType);
+        const extra = computeExplosionCells(r, c, val, null);
         extra.forEach((ek) => { if (!set.has(ek)) { set.add(ek); queue.push(ek); } });
       }
     }
@@ -946,7 +1005,7 @@
     cells.forEach((k) => { const [r, c] = k.split(',').map(Number); const el = tileEls[r][c]; if (el) el.classList.add('exploding'); });
     addScoreAndGoals(cells, cascadeLevel);
     Sound.explosion();
-    haptic('rigid');
+    haptic('heavy');
     state.stats.bestCombo = Math.max(state.stats.bestCombo, cascadeLevel);
 
     await wait(300);
@@ -1011,7 +1070,7 @@
     }
   }
 
-  /* ---------- Проверка ходов / реshuffle ---------- */
+  /* ---------- Проверка ходов / reshuffle ---------- */
   function hasAnyValidMoveBoard() {
     for (let r = 0; r < SIZE; r++) {
       for (let c = 0; c < SIZE; c++) {
@@ -1064,13 +1123,13 @@
   function onBoosterBarClick(btn) {
     if (busy || !currentLevel) return;
     const type = btn.dataset.booster;
-    if ((state.boosters[type] || 0) <= 0) { showToast('Нет бустера в запасе'); Sound.error(); return; }
+    if ((state.boosters[type] || 0) <= 0) { showToast('Нет бустера в запасе'); Sound.error(); haptic('error'); return; }
     if (type === 'shuffle') { useShuffleBooster(); return; }
     if (armedBooster === type) { armedBooster = null; btn.classList.remove('active-select'); return; }
     document.querySelectorAll('.booster-btn').forEach((b) => b.classList.remove('active-select'));
     armedBooster = type;
     btn.classList.add('active-select');
-    Sound.select();
+    Sound.select(); haptic('light');
     showToast(type === 'hammer' ? 'Выберите фишку 🔨' : 'Выберите фишку для взрыва 🚀');
   }
 
@@ -1203,7 +1262,7 @@
 
   /* ---------- Запуск уровня ---------- */
   function startLevel(n) {
-    if (state.lives <= 0) { showToast('Нет жизней ❤️ Ждите восстановления или купите в магазине'); showScreen('screenShop'); return; }
+    if (state.lives <= 0) { showToast('Нет жизней ❤️ Ждите восстановления или купите в магазине'); openModal('modalShop'); return; }
     if (!spendLife()) return;
     currentLevel = levelConfig(n);
     currentLevel.score = 0;
@@ -1268,6 +1327,7 @@
      12. СТАРТ ПРИЛОЖЕНИЯ
      ============================================================ */
   initTelegram();
+  renderPlayerBadge();
   showScreen('screenMenu');
   renderResources();
   renderBoosterCounts();
