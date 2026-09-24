@@ -348,3 +348,58 @@ html, body {
   .shop-grid { grid-template-columns: repeat(3, 1fr); }
   .levels-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* ---------------- Плавающая кнопка админки ---------------- */
+.floating-admin-btn {
+  position: fixed; right: 16px; bottom: calc(16px + var(--safe-bottom));
+  width: 52px; height: 52px; border-radius: 50%; z-index: 90;
+  border: 1px solid var(--gold); background: linear-gradient(135deg, #3a2a00, #1a1200);
+  color: var(--gold); font-size: 22px; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5), 0 0 16px rgba(255,210,63,0.5);
+}
+.floating-admin-btn:active { transform: scale(0.92); }
+
+/* ---------------- Админ-панель ---------------- */
+.admin-card { width: min(460px, 94vw); }
+.admin-stats-box { width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--glass-border); border-radius: 14px; padding: 14px; font-size: 13px; line-height: 1.7; margin-bottom: 10px; white-space: pre-line; }
+.admin-broadcast-block { width: 100%; margin-top: 16px; text-align: left; }
+.admin-broadcast-block h3 { font-size: 13px; color: var(--tg-hint); text-transform: uppercase; margin: 0 0 8px; }
+.admin-textarea {
+  width: 100%; min-height: 70px; border-radius: 10px; border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.25); color: #fff; padding: 10px; font-size: 13px; resize: vertical; margin-bottom: 8px; font-family: inherit;
+}
+.admin-input {
+  width: 100%; border-radius: 10px; border: 1px solid var(--glass-border);
+  background: rgba(0,0,0,0.25); color: #fff; padding: 10px; font-size: 13px; margin-bottom: 8px; font-family: inherit;
+}
+.broadcast-progress-wrap { margin-top: 10px; }
+.admin-small-label { font-size: 11px; color: var(--tg-hint); margin-top: 4px; }
+
+.admin-search-row { display: flex; gap: 8px; width: 100%; margin-bottom: 12px; }
+.admin-search-row .admin-input { margin-bottom: 0; }
+.admin-search-btn { width: 52px; flex-shrink: 0; margin-top: 0; }
+.admin-search-results { display: flex; flex-direction: column; gap: 8px; width: 100%; max-height: 30vh; overflow-y: auto; margin-bottom: 12px; }
+.admin-result-item {
+  background: var(--panel); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px 12px;
+  text-align: left; font-size: 12px; cursor: pointer;
+}
+.admin-result-item b { display: block; font-size: 13px; }
+.admin-player-detail { width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--glass-border); border-radius: 14px; padding: 14px; }
+.admin-player-detail.hidden { display: none; }
+.admin-detail-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.admin-actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.admin-actions-grid input { grid-column: span 2; border-radius: 8px; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.25); color: #fff; padding: 8px; font-size: 12px; }
+.admin-actions-grid button {
+  border: none; border-radius: 8px; padding: 9px 6px; font-size: 11px; font-weight: 800; cursor: pointer;
+  background: var(--panel-2); color: #fff;
+}
+.admin-actions-grid button.danger { background: linear-gradient(135deg, #ff4d6d, #b0203a); }
+.admin-actions-grid button.positive { background: linear-gradient(135deg, #38d97a, #1ea85a); color: #04210f; }
+
+.admin-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; background: var(--panel); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; text-align: left; font-size: 13px; }
+.admin-toggle-btn { width: auto; margin-top: 0; padding: 8px 16px; }
+.admin-toggle-btn.on { background: linear-gradient(135deg, #38d97a, #1ea85a); color: #04210f; }
+
+/* ---------------- Экран техработ ---------------- */
+.maintenance-screen { z-index: 500; background: rgba(6,3,16,0.96); }
+.maintenance-icon { font-size: 52px; margin-bottom: 8px; }
