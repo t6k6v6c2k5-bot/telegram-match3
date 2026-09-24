@@ -222,6 +222,7 @@
       sound: true,
       unlockedLevel: 1,
       levelStars: {},
+      claimedChests: {},
       boosters: { hammer: 3, shuffle: 2, rocketBoost: 2 },
       ownedSkins: { classic: true },
       equippedSkin: 'classic',
@@ -462,19 +463,220 @@
     };
   }
 
-  function renderLevelsGrid() {
-    const grid = document.getElementById('levelsGrid');
-    grid.innerHTML = '';
+  /* ============================================================
+     КАРТА УРОВНЕЙ — S-образная тропинка, биомы, сундуки
+     ============================================================ */
+  const NODE_SPACING_Y = 128;   // px между центрами соседних узлов по вертикали
+  const PATH_TOP_PAD = 70;      // отступ сверху трека (под последним/самым высоким уровнем)
+  const PATH_BOTTOM_PAD = 50;   // отступ снизу трека (под уровнем 1)
+  const XPOS_CYCLE = [18, 50, 82, 50]; // Лево → Центр → Право → Центр → (повтор) — % от ширины трека
+  const CHEST_EVERY = 5;        // сундук после каждого 5-го уровня
+
+  const BIOMES = [
+    { key: 'strawberry', name: 'Клубничная Долина', emoji: '🍓', maxLevel: 10, cls: 'biome-strawberry' },
+    { key: 'citrus', name: 'Цитрусовый Остров', emoji: '🍊', maxLevel: 20, cls: 'biome-citrus' },
+    { key: 'space', name: 'Космический Блитц', emoji: '🌌', maxLevel: Infinity, cls: 'biome-space' }
+  ];
+  function biomeForLevel(n) { return BIOMES.find((b) => n <= b.maxLevel) || BIOMES[BIOMES.length - 1]; }
+
+  /** Строит последовательность узлов тропинки: уровни + вкрапленные сундуки, с координатами. */
+  function buildPathItems() {
+    const items = [];
     for (let n = 1; n <= LEVEL_COUNT; n++) {
-      const locked = n > state.unlockedLevel;
-      const cfg = levelConfig(n);
-      const btn = document.createElement('button');
-      btn.className = 'level-node' + (locked ? ' locked' : '') + (n === state.unlockedLevel ? ' current' : '');
-      const stars = state.levelStars[n] || 0;
-      btn.innerHTML = `<div>${locked ? '🔒' : n}</div><div class="mode-tag">${locked ? '' : MODE_ICON[cfg.mode]}</div><div class="stars">${locked ? '' : '⭐'.repeat(stars) + '☆'.repeat(3 - stars)}</div><div class="size-tag">${cfg.size}×${cfg.size}</div>`;
-      if (!locked) btn.addEventListener('click', () => { haptic('light'); startLevel(n); });
-      grid.appendChild(btn);
+      items.push({ type: 'level', level: n });
+      if (n % CHEST_EVERY === 0 && n !== LEVEL_COUNT) items.push({ type: 'chest', afterLevel: n });
     }
+    const total = items.length;
+    let levelSeq = 0;
+    items.forEach((item, i) => {
+      item.xPercent = (item.type === 'chest') ? 50 : XPOS_CYCLE[levelSeq++ % XPOS_CYCLE.length];
+      // Уровень 1 внизу (большой y), последний узел — наверху (y ≈ PATH_TOP_PAD): тропинка идёт снизу вверх.
+      item.y = PATH_BOTTOM_PAD + (total - 1 - i) * NODE_SPACING_Y;
+    });
+    return { items, totalHeight: PATH_BOTTOM_PAD + (total - 1) * NODE_SPACING_Y + PATH_TOP_PAD };
+  }
+
+  function renderLevelsGrid() {
+    const track = document.getElementById('levelsGrid');
+    track.innerHTML = '';
+    const { items, totalHeight } = buildPathItems();
+    const trackWidth = track.clientWidth || track.parentElement.clientWidth || 320;
+    track.style.height = totalHeight + 'px';
+
+    // ---------- 1) Биомы (фоновые зоны) ----------
+    const yOfLevel = (n) => { const it = items.find((x) => x.type === 'level' && x.level === n); return it ? it.y : 0; };
+    const boundaryCitrusSpace = (yOfLevel(20) + yOfLevel(21 <= LEVEL_COUNT ? 21 : 20)) / 2;
+    const boundaryStrawberryCitrus = (yOfLevel(10) + yOfLevel(11 <= LEVEL_COUNT ? 11 : 10)) / 2;
+    const biomeBands = [
+      { biome: BIOMES[2], top: 0, height: LEVEL_COUNT > 20 ? boundaryCitrusSpace : 0 },
+      { biome: BIOMES[1], top: LEVEL_COUNT > 20 ? boundaryCitrusSpace : 0, height: (LEVEL_COUNT > 10 ? boundaryStrawberryCitrus : totalHeight) - (LEVEL_COUNT > 20 ? boundaryCitrusSpace : 0) },
+      { biome: BIOMES[0], top: LEVEL_COUNT > 10 ? boundaryStrawberryCitrus : 0, height: totalHeight - (LEVEL_COUNT > 10 ? boundaryStrawberryCitrus : 0) }
+    ];
+    biomeBands.forEach((band) => {
+      if (band.height <= 0) return;
+      const layer = document.createElement('div');
+      layer.className = 'biome-layer ' + band.biome.cls;
+      layer.style.top = band.top + 'px';
+      layer.style.height = band.height + 'px';
+      const label = document.createElement('div');
+      label.className = 'biome-label';
+      label.textContent = `${band.biome.emoji} ${band.biome.name}`;
+      layer.appendChild(label);
+      track.appendChild(layer);
+    });
+
+    // ---------- 2) Декоративные плавающие фрукты/искры ----------
+    const decor = document.createElement('div');
+    decor.className = 'map-bg-decor';
+    decor.style.height = totalHeight + 'px';
+    const decorEmojis = ['🍎', '🍇', '🍊', '🫐', '✨', '✨'];
+    for (let i = 0; i < 14; i++) {
+      const s = document.createElement('span');
+      const isSpark = decorEmojis[i % decorEmojis.length] === '✨';
+      if (isSpark) s.classList.add('spark');
+      s.textContent = decorEmojis[i % decorEmojis.length];
+      s.style.setProperty('--mx', (Math.random() * 92 + 2) + '%');
+      s.style.setProperty('--mb', (Math.random() * totalHeight) + 'px');
+      s.style.setProperty('--ms', (isSpark ? 8 + Math.random() * 6 : 16 + Math.random() * 12) + 'px');
+      s.style.setProperty('--md', (6 + Math.random() * 6) + 's');
+      s.style.setProperty('--mdl', (Math.random() * 4) + 's');
+      decor.appendChild(s);
+    }
+    track.appendChild(decor);
+
+    // ---------- 3) SVG-тропинка (пунктирная линия со свечением) ----------
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'levels-path-svg');
+    svg.setAttribute('width', trackWidth);
+    svg.setAttribute('height', totalHeight);
+    const points = items.map((it) => `${(it.xPercent / 100) * trackWidth},${it.y}`);
+    const d = 'M ' + points.join(' L ');
+    const glowPath = document.createElementNS(svgNS, 'path');
+    glowPath.setAttribute('d', d); glowPath.setAttribute('class', 'path-glow');
+    const dashPath = document.createElementNS(svgNS, 'path');
+    dashPath.setAttribute('d', d); dashPath.setAttribute('class', 'path-dash');
+    svg.appendChild(glowPath); svg.appendChild(dashPath);
+    track.appendChild(svg);
+
+    // ---------- 4) Узлы: уровни и сундуки ----------
+    items.forEach((item) => {
+      const node = document.createElement('div');
+      node.className = 'map-node';
+      node.style.left = item.xPercent + '%';
+      node.style.top = item.y + 'px';
+
+      if (item.type === 'chest') {
+        renderChestNode(node, item.afterLevel);
+      } else {
+        renderLevelNode(node, item.level);
+      }
+      track.appendChild(node);
+    });
+
+    // ---------- 5) Автоскролл к текущему уровню ----------
+    requestAnimationFrame(() => {
+      const currentY = yOfLevel(Math.min(state.unlockedLevel, LEVEL_COUNT));
+      const scrollHost = document.getElementById('screenLevels');
+      const headerH = (scrollHost.querySelector('.screen-header') || {}).offsetHeight || 0;
+      const target = Math.max(0, currentY - (scrollHost.clientHeight - headerH) / 2);
+      scrollHost.scrollTo({ top: target, behavior: 'auto' });
+    });
+  }
+
+  function renderLevelNode(node, n) {
+    const locked = n > state.unlockedLevel;
+    const isCurrent = n === state.unlockedLevel;
+    const stars = state.levelStars[n] || 0;
+    const completed = stars > 0 || n < state.unlockedLevel;
+    const cfg = levelConfig(n);
+
+    const orb = document.createElement('button');
+    orb.className = 'level-orb' + (locked ? ' locked' : (isCurrent ? ' current' : (completed ? ' completed' : '')));
+    if (locked) {
+      orb.innerHTML = `<span class="lock-icon">🔒</span>`;
+    } else {
+      orb.innerHTML = `${n}<span class="mode-tag">${MODE_ICON[cfg.mode]}</span>`;
+    }
+    orb.disabled = locked;
+    if (!locked) orb.addEventListener('click', () => { haptic('light'); startLevel(n); });
+    node.appendChild(orb);
+
+    if (!locked) {
+      const sizeTag = document.createElement('div');
+      sizeTag.className = 'size-tag';
+      sizeTag.textContent = `${cfg.size}×${cfg.size}`;
+      node.appendChild(sizeTag);
+    }
+    if (completed) {
+      const starsRow = document.createElement('div');
+      starsRow.className = 'stars-row';
+      starsRow.textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+      node.appendChild(starsRow);
+    }
+    if (isCurrent) {
+      const marker = document.createElement('div');
+      marker.className = 'here-marker';
+      const avatarHtml = (telegramUser && telegramUser.photo_url)
+        ? `<img src="${telegramUser.photo_url}" alt="" />`
+        : (telegramUser ? (telegramUser.first_name || '?').charAt(0).toUpperCase() : '🙂');
+      marker.innerHTML = `<span class="here-label">Ты здесь!</span><span class="here-avatar">${avatarHtml}</span>`;
+      node.appendChild(marker);
+    }
+  }
+
+  function renderChestNode(node, afterLevel) {
+    const available = state.unlockedLevel > afterLevel;
+    const claimed = !!(state.claimedChests && state.claimedChests[afterLevel]);
+    const orb = document.createElement('button');
+    orb.className = 'chest-orb' + (!available ? ' locked' : (claimed ? ' claimed' : ' claimable'));
+    orb.textContent = claimed ? '📭' : '🎁';
+    orb.disabled = !available || claimed;
+    if (available && !claimed) orb.addEventListener('click', () => claimChest(afterLevel));
+    node.appendChild(orb);
+
+    const label = document.createElement('div');
+    label.className = 'chest-label';
+    label.textContent = claimed ? 'Открыт' : (available ? 'Забрать!' : `Ур. ${afterLevel}`);
+    node.appendChild(label);
+  }
+
+  function claimChest(afterLevel) {
+    if (!state.claimedChests) state.claimedChests = {};
+    if (state.claimedChests[afterLevel]) return;
+    state.claimedChests[afterLevel] = true;
+    const coinsReward = 100, gemsReward = 5;
+    addCoins(coinsReward);
+    addGems(gemsReward);
+    saveState();
+    Sound.win(); haptic('success');
+    fireConfetti(1);
+    showChestRewardPopup(coinsReward, gemsReward);
+    renderLevelsGrid();
+  }
+
+  let chestRewardEl = null;
+  function ensureChestRewardModal() {
+    if (chestRewardEl) return chestRewardEl;
+    const el = document.createElement('div');
+    el.id = 'chestRewardPopup';
+    el.className = 'overlay hidden';
+    el.innerHTML = `
+      <div class="overlay-card chest-reward-card">
+        <div class="chest-reward-icon">🎁</div>
+        <h2>Сундук открыт!</h2>
+        <div class="chest-reward-amount" id="chestRewardAmount"></div>
+        <button class="primary-btn" id="btnCloseChestReward">Забрать</button>
+      </div>`;
+    document.body.appendChild(el);
+    el.querySelector('#btnCloseChestReward').addEventListener('click', () => el.classList.add('hidden'));
+    chestRewardEl = el;
+    return el;
+  }
+  function showChestRewardPopup(coins, gems) {
+    const el = ensureChestRewardModal();
+    el.querySelector('#chestRewardAmount').textContent = `+${coins} 🪙   +${gems} 💎`;
+    el.classList.remove('hidden');
   }
 
   /* ============================================================
