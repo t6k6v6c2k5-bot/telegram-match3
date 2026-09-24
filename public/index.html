@@ -3,50 +3,182 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>Три в ряд</title>
+<title>Fruit Blast — Три в ряд</title>
 <link rel="stylesheet" href="style.css" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <div id="app">
+<div id="app">
 
-    <header class="topbar">
-      <div class="stat">
-        <span class="stat-label">Очки</span>
-        <span class="stat-value" id="scoreValue">0</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Ходы</span>
-        <span class="stat-value" id="movesValue">20</span>
-      </div>
-      <button class="restart-btn" id="restartTopBtn" title="Начать заново">↻</button>
-    </header>
+  <!-- ===================== ШАПКА РЕСУРСОВ (везде кроме игры) ===================== -->
+  <header id="resourceBar" class="resource-bar">
+    <div class="res-pill" title="Монеты">🪙<span id="coinsValue">0</span></div>
+    <div class="res-pill" title="Кристаллы">💎<span id="gemsValue">0</span></div>
+    <div class="res-pill lives-pill" title="Жизни">❤️<span id="livesValue">5</span><small id="livesTimer"></small></div>
+    <button id="soundToggleBtn" class="icon-btn" title="Звук">🔊</button>
+  </header>
 
-    <main class="board-wrap">
+  <!-- ===================== ГЛАВНОЕ МЕНЮ ===================== -->
+  <section id="screenMenu" class="screen active">
+    <div class="logo-wrap">
+      <h1 class="game-logo"><span>FRUIT</span><span class="logo-accent">BLAST</span></h1>
+      <p class="logo-sub">Три в ряд · Сочно · Азартно</p>
+    </div>
+
+    <div class="menu-buttons">
+      <button class="big-btn primary-glow" id="btnPlay">▶ Играть</button>
+      <button class="big-btn" id="btnShop">🛍 Магазин</button>
+      <button class="big-btn" id="btnWheel">🎡 Колесо Фортуны</button>
+      <button class="big-btn" id="btnLeaderboard">🏆 Таблица лидеров</button>
+      <button class="big-btn" id="btnAchievements">🎖 Достижения</button>
+    </div>
+  </section>
+
+  <!-- ===================== КАРТА УРОВНЕЙ ===================== -->
+  <section id="screenLevels" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" data-back="screenMenu">←</button>
+      <h2>Карта уровней</h2>
+    </div>
+    <div id="levelsGrid" class="levels-grid"></div>
+  </section>
+
+  <!-- ===================== МАГАЗИН ===================== -->
+  <section id="screenShop" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" data-back="screenMenu">←</button>
+      <h2>Магазин</h2>
+    </div>
+    <div class="shop-section">
+      <h3>Бустеры за монеты 🪙</h3>
+      <div class="shop-grid">
+        <div class="shop-card">
+          <div class="shop-icon">🔨</div>
+          <div class="shop-name">Молот</div>
+          <div class="shop-desc">Уничтожает одну фишку</div>
+          <button class="shop-buy-btn" data-shop-buy="hammer" data-cost="150" data-currency="coins">150 🪙</button>
+        </div>
+        <div class="shop-card">
+          <div class="shop-icon">🔀</div>
+          <div class="shop-name">Перемешать</div>
+          <div class="shop-desc">Перемешивает поле</div>
+          <button class="shop-buy-btn" data-shop-buy="shuffle" data-cost="120" data-currency="coins">120 🪙</button>
+        </div>
+        <div class="shop-card">
+          <div class="shop-icon">➕5</div>
+          <div class="shop-name">+5 ходов</div>
+          <div class="shop-desc">Добавляет 5 ходов</div>
+          <button class="shop-buy-btn" data-shop-buy="moves" data-cost="200" data-currency="coins">200 🪙</button>
+        </div>
+      </div>
+    </div>
+    <div class="shop-section">
+      <h3>Жизни за кристаллы 💎</h3>
+      <div class="shop-grid">
+        <div class="shop-card">
+          <div class="shop-icon">❤️</div>
+          <div class="shop-name">Полный запас</div>
+          <div class="shop-desc">5 из 5 жизней</div>
+          <button class="shop-buy-btn" data-shop-buy="lives" data-cost="10" data-currency="gems">10 💎</button>
+        </div>
+        <div class="shop-card">
+          <div class="shop-icon">💎</div>
+          <div class="shop-name">+50 кристаллов</div>
+          <div class="shop-desc">Бонусный набор</div>
+          <button class="shop-buy-btn" data-shop-buy="gems50" data-cost="300" data-currency="coins">300 🪙</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ДОСТИЖЕНИЯ ===================== -->
+  <section id="screenAchievements" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" data-back="screenMenu">←</button>
+      <h2>Достижения</h2>
+    </div>
+    <div id="achievementsList" class="achievements-list"></div>
+  </section>
+
+  <!-- ===================== ТАБЛИЦА ЛИДЕРОВ ===================== -->
+  <section id="screenLeaderboard" class="screen">
+    <div class="screen-header">
+      <button class="back-btn" data-back="screenMenu">←</button>
+      <h2>Таблица лидеров</h2>
+    </div>
+    <ol id="leaderboardList" class="leaderboard-list"></ol>
+  </section>
+
+  <!-- ===================== ИГРОВОЙ ЭКРАН ===================== -->
+  <section id="screenGame" class="screen">
+    <div class="game-topbar">
+      <button class="icon-btn" id="btnPause">⏸</button>
+      <div class="goal-panel" id="goalPanel"></div>
+      <div class="counter-pill" title="Ходы">👣<span id="movesValue">20</span></div>
+      <div class="counter-pill" title="Очки">⭐<span id="scoreValue">0</span></div>
+    </div>
+
+    <div class="board-wrap">
       <div id="board" class="board"></div>
-    </main>
+    </div>
 
     <div id="comboToast" class="combo-toast hidden"></div>
+    <div id="flyCoinsLayer" class="fly-layer"></div>
 
-    <div id="gameOverScreen" class="overlay hidden">
-      <div class="overlay-card">
-        <h2>Игра окончена!</h2>
-        <p class="final-score-label">Ваш результат</p>
-        <p class="final-score" id="finalScoreValue">0</p>
-        <button id="playAgainBtn" class="primary-btn">Переиграть</button>
-      </div>
+    <div class="booster-bar">
+      <button class="booster-btn" data-booster="hammer">
+        <span class="booster-icon">🔨</span><span class="booster-count" id="countHammer">0</span>
+      </button>
+      <button class="booster-btn" data-booster="shuffle">
+        <span class="booster-icon">🔀</span><span class="booster-count" id="countShuffle">0</span>
+      </button>
+      <button class="booster-btn" data-booster="rocketBoost">
+        <span class="booster-icon">🚀</span><span class="booster-count" id="countRocketBoost">0</span>
+      </button>
     </div>
+  </section>
 
-    <div id="startScreen" class="overlay">
-      <div class="overlay-card">
-        <h1>Три в ряд</h1>
-        <p class="subtitle">Соединяй по 3 и более одинаковых фишек</p>
-        <button id="startBtn" class="primary-btn">Играть</button>
-      </div>
+  <!-- ===================== МОДАЛКА: ПАУЗА ===================== -->
+  <div id="modalPause" class="overlay hidden">
+    <div class="overlay-card">
+      <h2>Пауза</h2>
+      <button class="primary-btn" id="btnResume">Продолжить</button>
+      <button class="secondary-btn" id="btnPauseRestart">Начать заново</button>
+      <button class="secondary-btn" id="btnPauseExit">Выйти в меню</button>
     </div>
-
   </div>
 
+  <!-- ===================== МОДАЛКА: РЕЗУЛЬТАТ ===================== -->
+  <div id="modalResult" class="overlay hidden">
+    <div class="overlay-card result-card">
+      <h2 id="resultTitle">Победа!</h2>
+      <div id="resultStars" class="result-stars">⭐⭐⭐</div>
+      <p class="final-score-label">Очки</p>
+      <p class="final-score" id="resultScore">0</p>
+      <p class="coins-earned" id="resultCoins">+0 🪙</p>
+      <div class="result-buttons">
+        <button class="primary-btn" id="btnNextLevel">Дальше</button>
+        <button class="secondary-btn" id="btnRetryLevel">Переиграть</button>
+        <button class="secondary-btn" id="btnShareResult">📤 Поделиться</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== МОДАЛКА: КОЛЕСО ФОРТУНЫ ===================== -->
+  <div id="modalWheel" class="overlay hidden">
+    <div class="overlay-card">
+      <h2>Колесо Фортуны</h2>
+      <p class="subtitle">Крути раз в день и получай награды</p>
+      <div class="wheel-outer">
+        <div class="wheel-pointer">▼</div>
+        <div id="wheelDial" class="wheel-dial"></div>
+      </div>
+      <button class="primary-btn" id="btnSpinWheel">Крутить</button>
+      <button class="secondary-btn" data-back="screenMenu" id="btnCloseWheel">Закрыть</button>
+    </div>
+  </div>
+
+</div>
 <script src="game.js"></script>
 </body>
 </html>
