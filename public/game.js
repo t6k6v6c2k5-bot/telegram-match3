@@ -488,12 +488,40 @@
     }
     const total = items.length;
     let levelSeq = 0;
+    let chestSeq = 0;
     items.forEach((item, i) => {
-      item.xPercent = (item.type === 'chest') ? 50 : XPOS_CYCLE[levelSeq++ % XPOS_CYCLE.length];
+      if (item.type === 'chest') {
+        // Сундук смещён В СТОРОНУ от тропинки (не на линии узлов уровней), чтобы не
+        // перекрывать пунктирную линию и плашки биомов. Чередуем сторону для баланса.
+        item.xPercent = (chestSeq++ % 2 === 0) ? 84 : 16;
+      } else {
+        item.xPercent = XPOS_CYCLE[levelSeq++ % XPOS_CYCLE.length];
+      }
       // Уровень 1 внизу (большой y), последний узел — наверху (y ≈ PATH_TOP_PAD): тропинка идёт снизу вверх.
       item.y = PATH_BOTTOM_PAD + (total - 1 - i) * NODE_SPACING_Y;
     });
     return { items, totalHeight: PATH_BOTTOM_PAD + (total - 1) * NODE_SPACING_Y + PATH_TOP_PAD };
+  }
+
+  /** Один непрерывный CSS linear-gradient через все биомы — без жёстких швов между зонами. */
+  function buildBiomeGradientCss(yOfLevel, totalHeight) {
+    const pct = (y) => Math.max(0, Math.min(100, (y / totalHeight) * 100));
+    // Границы: середина между последним уровнем биома и первым уровнем следующего.
+    const spaceBottomY = LEVEL_COUNT > 20 ? (yOfLevel(20) + yOfLevel(Math.min(21, LEVEL_COUNT))) / 2 : 0;
+    const citrusBottomY = LEVEL_COUNT > 10 ? (yOfLevel(10) + yOfLevel(Math.min(11, LEVEL_COUNT))) / 2 : totalHeight;
+    const stops = [
+      { p: 0, c: '#0c0620' },                          // 🌌 космос — верх
+      { p: pct(spaceBottomY), c: '#2a1454' },
+      { p: Math.min(100, pct(spaceBottomY) + 8), c: '#7a4a1e' }, // мягкий блен в цитрус
+      { p: pct(citrusBottomY) - 10, c: '#e67e22' },     // 🍊 цитрус — середина
+      { p: pct(citrusBottomY), c: '#f4b942' },
+      { p: Math.min(100, pct(citrusBottomY) + 8), c: '#2f7a4a' }, // мягкий блен в клубнику
+      { p: 100, c: '#1e824c' }                          // 🍓 клубника — низ (уровень 1)
+    ];
+    // страхуемся от немонотонных процентов на очень маленьких LEVEL_COUNT
+    let prev = -1;
+    const safeStops = stops.filter((s) => { const ok = s.p > prev; if (ok) prev = s.p; return ok; });
+    return `linear-gradient(180deg, ${safeStops.map((s) => `${s.c} ${s.p.toFixed(1)}%`).join(', ')})`;
   }
 
   function renderLevelsGrid() {
@@ -502,27 +530,30 @@
     const { items, totalHeight } = buildPathItems();
     const trackWidth = track.clientWidth || track.parentElement.clientWidth || 320;
     track.style.height = totalHeight + 'px';
-
-    // ---------- 1) Биомы (фоновые зоны) ----------
     const yOfLevel = (n) => { const it = items.find((x) => x.type === 'level' && x.level === n); return it ? it.y : 0; };
-    const boundaryCitrusSpace = (yOfLevel(20) + yOfLevel(21 <= LEVEL_COUNT ? 21 : 20)) / 2;
-    const boundaryStrawberryCitrus = (yOfLevel(10) + yOfLevel(11 <= LEVEL_COUNT ? 11 : 10)) / 2;
-    const biomeBands = [
-      { biome: BIOMES[2], top: 0, height: LEVEL_COUNT > 20 ? boundaryCitrusSpace : 0 },
-      { biome: BIOMES[1], top: LEVEL_COUNT > 20 ? boundaryCitrusSpace : 0, height: (LEVEL_COUNT > 10 ? boundaryStrawberryCitrus : totalHeight) - (LEVEL_COUNT > 20 ? boundaryCitrusSpace : 0) },
-      { biome: BIOMES[0], top: LEVEL_COUNT > 10 ? boundaryStrawberryCitrus : 0, height: totalHeight - (LEVEL_COUNT > 10 ? boundaryStrawberryCitrus : 0) }
+
+    // ---------- 1) Единый градиент биомов (без швов) ----------
+    const bg = document.createElement('div');
+    bg.className = 'biome-gradient-bg';
+    bg.style.height = totalHeight + 'px';
+    bg.style.background = buildBiomeGradientCss(yOfLevel, totalHeight);
+    track.appendChild(bg);
+
+    // Подписи биомов — размещены В ЗАЗОРЕ между рядами узлов (половина шага сетки от
+    // границы биома), чтобы гарантированно не пересекаться ни с уровнями, ни с сундуками.
+    const spaceBoundaryY = LEVEL_COUNT > 20 ? (yOfLevel(20) + yOfLevel(Math.min(21, LEVEL_COUNT))) / 2 : 0;
+    const citrusBoundaryY = LEVEL_COUNT > 10 ? (yOfLevel(10) + yOfLevel(Math.min(11, LEVEL_COUNT))) / 2 : totalHeight;
+    const labelSpecs = [
+      { biome: BIOMES[2], y: Math.max(24, spaceBoundaryY - NODE_SPACING_Y * 0.5) },
+      { biome: BIOMES[1], y: (spaceBoundaryY + citrusBoundaryY) / 2 },
+      { biome: BIOMES[0], y: Math.min(totalHeight - 20, citrusBoundaryY + NODE_SPACING_Y * 0.5) }
     ];
-    biomeBands.forEach((band) => {
-      if (band.height <= 0) return;
-      const layer = document.createElement('div');
-      layer.className = 'biome-layer ' + band.biome.cls;
-      layer.style.top = band.top + 'px';
-      layer.style.height = band.height + 'px';
+    labelSpecs.forEach((spec) => {
       const label = document.createElement('div');
       label.className = 'biome-label';
-      label.textContent = `${band.biome.emoji} ${band.biome.name}`;
-      layer.appendChild(label);
-      track.appendChild(layer);
+      label.style.top = spec.y + 'px';
+      label.textContent = `${spec.biome.emoji} ${spec.biome.name}`;
+      track.appendChild(label);
     });
 
     // ---------- 2) Декоративные плавающие фрукты/искры ----------
@@ -544,14 +575,14 @@
     }
     track.appendChild(decor);
 
-    // ---------- 3) SVG-тропинка (пунктирная линия со свечением) ----------
+    // ---------- 3) SVG-тропинка: линия соединяет ТОЛЬКО уровни (сундуки — в стороне) ----------
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('class', 'levels-path-svg');
     svg.setAttribute('width', trackWidth);
     svg.setAttribute('height', totalHeight);
-    const points = items.map((it) => `${(it.xPercent / 100) * trackWidth},${it.y}`);
-    const d = 'M ' + points.join(' L ');
+    const levelPoints = items.filter((it) => it.type === 'level').map((it) => `${(it.xPercent / 100) * trackWidth},${it.y}`);
+    const d = 'M ' + levelPoints.join(' L ');
     const glowPath = document.createElementNS(svgNS, 'path');
     glowPath.setAttribute('d', d); glowPath.setAttribute('class', 'path-glow');
     const dashPath = document.createElementNS(svgNS, 'path');
@@ -593,10 +624,12 @@
 
     const orb = document.createElement('button');
     orb.className = 'level-orb' + (locked ? ' locked' : (isCurrent ? ' current' : (completed ? ' completed' : '')));
+    // Номер уровня отображается ВСЕГДА — крупно и по центру; для заблокированных
+    // добавляется приглушённый (opacity: 0.8), но по-прежнему читаемый номер + иконка замка.
     if (locked) {
-      orb.innerHTML = `<span class="lock-icon">🔒</span>`;
+      orb.innerHTML = `<span class="orb-number">${n}</span><span class="lock-icon">🔒</span>`;
     } else {
-      orb.innerHTML = `${n}<span class="mode-tag">${MODE_ICON[cfg.mode]}</span>`;
+      orb.innerHTML = `<span class="orb-number">${n}</span><span class="mode-tag">${MODE_ICON[cfg.mode]}</span>`;
     }
     orb.disabled = locked;
     if (!locked) orb.addEventListener('click', () => { haptic('light'); startLevel(n); });
