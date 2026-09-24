@@ -155,19 +155,148 @@ html, body {
 }
 .big-btn.admin-btn { background: linear-gradient(135deg, #444, #222); border-color: var(--gold); color: var(--gold); }
 
-/* ---------------- Карта уровней ---------------- */
-.levels-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; overflow-y: auto; padding-bottom: 20px; }
-.level-node {
-  aspect-ratio: 1; border-radius: 16px; border: 1px solid var(--glass-border);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  background: var(--panel); color: var(--tg-text); font-weight: 800; font-size: 16px;
-  backdrop-filter: blur(8px); box-shadow: 0 5px 0 rgba(0,0,0,0.3); cursor: pointer;
+/* ============================================================
+   КАРТА УРОВНЕЙ — извилистая S-тропинка, биомы, 3D-узлы, сундуки
+   ============================================================ */
+
+/* Экран карты: header остаётся видимым поверх тропинки при скролле (sticky),
+   сама тропинка — обычный высокий блок внутри уже скроллящегося .screen */
+#screenLevels { padding-bottom: 0; }
+#screenLevels .screen-header {
+  position: sticky; top: 0; z-index: 10; flex-shrink: 0;
+  margin: 0 -16px 10px; padding: 0 16px 10px;
+  background: rgba(15, 8, 30, 0.55); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--glass-border);
 }
-.level-node.locked { background: rgba(255,255,255,0.03); color: var(--tg-hint); opacity: 0.6; cursor: not-allowed; }
-.level-node.current { background: linear-gradient(135deg, var(--accent), #b24dff); box-shadow: 0 5px 0 #9c2f6b, 0 0 20px rgba(255,79,163,0.6); }
-.level-node .stars { font-size: 10px; letter-spacing: 1px; }
-.level-node .size-tag { font-size: 8px; color: var(--tg-hint); }
-.level-node .mode-tag { font-size: 12px; }
+
+/* Трек тропинки — растягивается на полную расчётную высоту (задаётся из JS) */
+.levels-grid { position: relative; width: 100%; overflow: visible; }
+
+/* ---------------- Биомы (фоновые зоны) ---------------- */
+.biome-layer { position: absolute; left: -16px; right: -16px; overflow: hidden; z-index: 0; }
+.biome-strawberry { background: linear-gradient(180deg, #163a2c 0%, #1f5c3a 45%, #2fae6a 100%); }
+.biome-citrus { background: linear-gradient(180deg, #5c2c14 0%, #a85a1e 45%, #ffb545 100%); }
+.biome-space { background: linear-gradient(180deg, #0c0620 0%, #1c1044 45%, #3a1a66 100%); }
+.biome-label {
+  position: absolute; left: 50%; transform: translateX(-50%); top: 14px;
+  display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px;
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.25); backdrop-filter: blur(6px);
+  font-weight: 800; font-size: 13px; white-space: nowrap; z-index: 2;
+}
+
+/* ---------------- Декоративный фон: плавающие фрукты/искры ---------------- */
+.map-bg-decor { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.map-bg-decor span {
+  position: absolute; left: var(--mx); bottom: var(--mb, -40px); font-size: var(--ms, 20px);
+  opacity: 0.28; animation: map-fruit-drift var(--md, 9s) ease-in-out infinite; animation-delay: var(--mdl, 0s);
+  filter: drop-shadow(0 0 6px rgba(255,255,255,0.25));
+}
+.map-bg-decor span.spark { font-size: 10px; opacity: 0.7; animation-name: map-spark-twinkle; }
+@keyframes map-fruit-drift {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-26px) rotate(6deg); }
+}
+@keyframes map-spark-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.8); }
+  50% { opacity: 0.9; transform: scale(1.3); }
+}
+
+/* ---------------- SVG-тропинка (пунктир с неоновым свечением) ---------------- */
+.levels-path-svg { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; overflow: visible; }
+.path-glow { fill: none; stroke: var(--accent-2); stroke-width: 9; stroke-linecap: round; opacity: 0.35; filter: blur(4px); }
+.path-dash {
+  fill: none; stroke: #ffffff; stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 3 14; opacity: 0.85;
+  filter: drop-shadow(0 0 4px var(--accent-2));
+  animation: path-flow 1.4s linear infinite;
+}
+@keyframes path-flow { to { stroke-dashoffset: -34; } }
+
+/* ---------------- Узлы уровней (3D-шарики) ---------------- */
+.map-node { position: absolute; transform: translate(-50%, -50%); z-index: 3; display: flex; flex-direction: column; align-items: center; }
+
+.level-orb {
+  width: 62px; height: 62px; border-radius: 50%; position: relative; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  border: none; font-family: inherit;
+  background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), transparent 45%),
+              linear-gradient(150deg, #6a4fd8, #3b2478);
+  box-shadow: 0 7px 0 rgba(0,0,0,0.35), 0 10px 18px rgba(0,0,0,0.45), inset 0 2px 4px rgba(255,255,255,0.35);
+  color: #fff; font-weight: 900; font-size: 19px;
+  transition: transform 0.12s ease;
+}
+.level-orb:active { transform: translateY(4px); box-shadow: 0 3px 0 rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.4); }
+.map-node .mode-tag { position: absolute; top: -6px; right: -4px; font-size: 14px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); }
+.map-node .size-tag { font-size: 8px; color: var(--tg-hint); margin-top: 2px; }
+.map-node .stars-row { font-size: 12px; letter-spacing: 1px; margin-top: 3px; filter: drop-shadow(0 0 4px rgba(255,210,63,0.7)); }
+
+/* Пройденные уровни: золотисто-зелёный градиент */
+.level-orb.completed {
+  background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.6), transparent 45%),
+              linear-gradient(150deg, #ffe27a, #38b06a 65%, #1f8a52);
+  box-shadow: 0 7px 0 #0e5a34, 0 10px 20px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.5);
+  color: #1a2b12;
+}
+
+/* Текущий активный уровень: неоновая пульсация */
+.level-orb.current {
+  background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.65), transparent 45%),
+              linear-gradient(150deg, #ff6fc0, #b24dff 60%, #6a2fe0);
+  animation: node-pulse 1.5s ease-in-out infinite;
+}
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 7px 0 #7a1f6b, 0 10px 18px rgba(0,0,0,0.45), 0 0 0 0 rgba(255,111,192,0.7), inset 0 2px 4px rgba(255,255,255,0.4); }
+  50% { box-shadow: 0 7px 0 #7a1f6b, 0 10px 18px rgba(0,0,0,0.45), 0 0 0 12px rgba(255,111,192,0), inset 0 2px 4px rgba(255,255,255,0.4); }
+}
+.here-marker {
+  position: absolute; top: -34px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; z-index: 4;
+  animation: here-bob 1.3s ease-in-out infinite;
+}
+.here-marker .here-label {
+  background: #fff; color: #1a1030; font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.4); white-space: nowrap;
+}
+.here-marker .here-avatar {
+  width: 30px; height: 30px; border-radius: 50%; overflow: hidden; border: 2px solid #fff;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.4); background: linear-gradient(135deg, var(--accent), #b24dff);
+  display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff;
+}
+.here-marker .here-avatar img { width: 100%; height: 100%; object-fit: cover; }
+@keyframes here-bob { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-6px); } }
+
+/* Заблокированные уровни: ледяной полупрозрачный шар */
+.level-orb.locked {
+  cursor: not-allowed;
+  background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.45), transparent 45%),
+              linear-gradient(150deg, rgba(175,220,255,0.35), rgba(90,120,160,0.35));
+  border: 1px solid rgba(255,255,255,0.35);
+  box-shadow: 0 6px 0 rgba(0,0,0,0.25), inset 0 2px 4px rgba(255,255,255,0.3);
+  opacity: 0.75; backdrop-filter: blur(2px);
+}
+.level-orb.locked .lock-icon { font-size: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
+
+/* ---------------- Бонусные сундуки ---------------- */
+.chest-orb {
+  width: 58px; height: 58px; border-radius: 20px; cursor: default; border: none; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; font-size: 28px;
+  background: linear-gradient(150deg, #7a4a1e, #4a2a10);
+  box-shadow: 0 7px 0 rgba(0,0,0,0.35), 0 10px 16px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.2);
+}
+.chest-orb.locked { opacity: 0.55; filter: grayscale(0.5); }
+.chest-orb.claimable {
+  cursor: pointer; background: linear-gradient(150deg, #ffd23f, #ff9f43);
+  animation: chest-bounce 1s ease-in-out infinite;
+  box-shadow: 0 7px 0 #a5590a, 0 0 22px rgba(255,210,63,0.8), inset 0 2px 4px rgba(255,255,255,0.5);
+}
+.chest-orb.claimed { opacity: 0.5; filter: grayscale(0.7); }
+@keyframes chest-bounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-7px) scale(1.06); } }
+.map-node .chest-label { font-size: 9px; font-weight: 800; color: var(--gold); margin-top: 3px; text-shadow: 0 2px 3px rgba(0,0,0,0.6); }
+
+/* ---------------- Попап награды сундука ---------------- */
+.chest-reward-card { width: min(300px, 90vw); }
+.chest-reward-icon { font-size: 52px; margin-bottom: 6px; animation: chest-bounce 0.8s ease-in-out 2; }
+.chest-reward-amount { font-size: 22px; font-weight: 900; color: var(--gold); margin: 8px 0 18px; }
 
 /* ---------------- Вкладки магазина ---------------- */
 .tab-bar { display: flex; gap: 6px; width: 100%; margin-bottom: 14px; }
@@ -363,7 +492,6 @@ html, body {
 @media (max-width: 360px) {
   .res-pill { font-size: 11px; padding: 0 8px; }
   .shop-grid { grid-template-columns: repeat(3, 1fr); }
-  .levels-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* ---------------- Плавающая кнопка админки ---------------- */
