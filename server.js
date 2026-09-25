@@ -117,7 +117,8 @@ let saveTimer = null;
 function saveDB() { clearTimeout(saveTimer); saveTimer = setTimeout(() => writeJSON(DB_FILE, players), 300); }
 function saveSettings() { writeJSON(SETTINGS_FILE, settings); }
 let economy = null;
-process.on('SIGTERM', () => { writeJSON(DB_FILE, players); if (economy) economy.flush(); process.exit(0); });
+let growth = null;
+process.on('SIGTERM', () => { writeJSON(DB_FILE, players); if (economy) economy.flush(); if (growth) growth.flush(); process.exit(0); });
 
 function getOrCreatePlayer(id, extra) {
   const key = String(id);
@@ -262,6 +263,7 @@ if (!BOT_TOKEN) {
     const from = msg.from;
     const p = getOrCreatePlayer(from.id, { name: from.first_name, username: from.username });
     if (p.isBanned) return bot.sendMessage(msg.chat.id, '⛔ Доступ к игре заблокирован.').catch(() => {});
+    if (p.notify) p.notify.blocked = false; // игрок открыл бота — снова можно писать
     const payload = match && match[1] ? match[1].trim() : '';
     if (payload.startsWith('ref_')) {
       const r = creditReferral(from.id, payload.slice(4), { name: from.first_name, username: from.username });
@@ -295,6 +297,7 @@ if (!BOT_TOKEN) {
   });
 
   bot.on('callback_query', async (q) => {
+    if (q.data === 'notif_off') return; // обрабатывается в growth.js
     const chatId = q.message.chat.id;
     if (q.data === 'leaderboard') {
       const top = leaderboard(10);
@@ -321,7 +324,8 @@ if (!BOT_TOKEN) {
    ============================================================ */
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '64kb' }));
+const jsonSmall = express.json({ limit: '64kb' }), jsonBig = express.json({ limit: '3mb' });
+app.use((req, res, next) => (req.path === '/api/share/prepare' ? jsonBig : jsonSmall)(req, res, next)); // карточки «Поделиться» — картинки
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 
 app.get('/api/game-settings', (req, res) => res.json({ success: true, ...publicSettings() }));
@@ -333,6 +337,7 @@ app.get('/api/leaderboard', (req, res) => {
 /* Игрок читает свою серверную запись (облачное сохранение + начисления админа) */
 app.get('/api/player-sync', requireUser, (req, res) => {
   const p = getOrCreatePlayer(req.user.id, req.user);
+  if (growth) { growth.touch(p); growth.normNotify(p); }
   p.lastSeen = Date.now();
   saveDB();
   res.json({ success: true, player: p, settings: publicSettings() });
@@ -354,6 +359,7 @@ app.post('/api/save-progress', requireUser, (req, res) => {
   if (typeof b.starsBank === 'number') p.starsBank = clampInt(b.starsBank, 1e6);
   if (typeof b.score === 'number') p.bestScore = Math.max(p.bestScore, clampInt(b.score, 1e9));
   if (b.boosters && typeof b.boosters === 'object') BOOSTER_KEYS.forEach((k) => { if (typeof b.boosters[k] === 'number') p.boosters[k] = clampInt(b.boosters[k], 9999); });
+  if (growth) growth.ingest(p, b);
   p.updatedAt = p.lastSeen = Date.now();
   saveDB();
   res.json({ success: true, player: p });
@@ -440,6 +446,8 @@ app.get('/api/admin/broadcast/status', requireAdmin, (req, res) => res.json({ su
 
 /* ---------------- Экономика: предметы, маркет, обмены, Telegram Stars ---------------- */
 economy = require('./economy.js')({ app, requireUser, requireAdmin, getOrCreatePlayer, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, getBot: () => bot, DEV_TRUST_IDS });
+/* ---------------- Аналитика, напоминания от бота, карточки «Поделиться» ---------------- */
+growth = require('./growth.js')({ app, requireUser, requireAdmin, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, BOT_USERNAME, getBot: () => bot, getEconomy: () => economy, settings, saveSettings });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 

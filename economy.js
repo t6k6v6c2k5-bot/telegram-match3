@@ -63,6 +63,7 @@ module.exports = function attachEconomy(ctx) {
     if (typeof p.shards !== 'number' || !isFinite(p.shards)) p.shards = 0;
     p.shards = Math.max(0, Math.floor(p.shards));
     p.vipUntil = p.vipUntil || 0;
+    p.passSeason = p.passSeason || 0;
     if (!Array.isArray(p.grants)) p.grants = [];
     if (!p.equip || typeof p.equip !== 'object') p.equip = {};
     p.verifiedWins = p.verifiedWins || 0;
@@ -226,7 +227,7 @@ module.exports = function attachEconomy(ctx) {
     const day = new Date().toISOString().slice(0, 10);
     const rl = eco.rolls[p.id] && eco.rolls[p.id].day === day ? eco.rolls[p.id].n : 0;
     return {
-      shards: p.shards, vipUntil: p.vipUntil, equip: equippedView(p), inventory: inv, trades, grants: p.grants,
+      shards: p.shards, vipUntil: p.vipUntil, passSeason: p.passSeason, equip: equippedView(p), inventory: inv, trades, grants: p.grants,
       myListings: Object.values(eco.listings).filter((l) => l.seller === p.id).map((l) => Object.assign({}, l, { item: view(eco.items[l.uid]) })),
       verifiedWins: p.verifiedWins, rollsLeft: Math.max(0, CFG.dailyRolls - rl),
       cfg: { lockHours: CFG.lockHours, fee: CFG.fee, minWins: CFG.minWins, dailyRolls: CFG.dailyRolls },
@@ -430,6 +431,7 @@ module.exports = function attachEconomy(ctx) {
   function productAvailable(p, prod) {
     if (!prod) return 'Товар не найден';
     if (prod.once && eco.once[p.id + ':' + prod.id]) return 'Этот набор можно купить только один раз';
+    if (prod.grant && prod.grant.pass && p.passSeason === Items.seasonInfo().id) return 'Премиум-пропуск на этот сезон уже куплен';
     const itemId = prod.grant && prod.grant.item;
     const def = itemId && Items.BY_ID[itemId];
     if (def && def.limit && (eco.serials[itemId] || 0) >= def.limit && prod.itemId) return 'Все экземпляры распроданы — ищите на маркете';
@@ -447,6 +449,7 @@ module.exports = function attachEconomy(ctx) {
         const comp = stars * 2; p.shards += comp; rec.gave.shards = (rec.gave.shards || 0) + comp; // распродано в последний момент — компенсация
       } else { const it = createItem(g.item, p.id, { source: 'stars', lockHours: 0 }); rec.gave.item = it.uid; }
     }
+    if (g.pass) { p.passSeason = Items.seasonInfo().id; rec.gave.pass = p.passSeason; }
     if (g.vipDays) p.vipUntil = Math.max(now(), p.vipUntil || 0) + g.vipDays * 86400000;
     if (g.soft) p.grants.push({ id: newUid(), rw: g.soft, title: prod.title, at: now() });
     if (prod.once) eco.once[p.id + ':' + prod.id] = true;
@@ -544,6 +547,7 @@ module.exports = function attachEconomy(ctx) {
       const p = ecoPlayer(rec.uid);
       if (rec.gave.shards) p.shards = Math.max(0, p.shards - rec.gave.shards);
       if (rec.gave.item && eco.items[rec.gave.item]) { const it = eco.items[rec.gave.item]; if (it.listing) { delete eco.listings[it.listing]; } destroyItem(it); }
+      if (rec.gave.pass && p.passSeason === rec.gave.pass) p.passSeason = 0;
       rec.refunded = true; rec.refundedAt = now();
       saveEco(); saveDB();
       res.json({ success: true });
@@ -559,5 +563,13 @@ module.exports = function attachEconomy(ctx) {
   });
 
   console.log(`   Экономика: предметов ${Object.keys(eco.items).length}, лотов ${Object.keys(eco.listings).length}, платежей ${eco.payments.length}`);
-  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG };
+  // Для аналитики: выручка в Stars по дням (UTC) и число премиум-пропусков текущего сезона
+  function revenueByDay(days) {
+    const out = {};
+    const from = now() - days * 86400000;
+    eco.payments.forEach((x) => { if (!x.refunded && x.at >= from) { const d = new Date(x.at).toISOString().slice(0, 10); out[d] = (out[d] || 0) + x.stars; } });
+    return out;
+  }
+  function passBuyers() { const sid = Items.seasonInfo().id; return Object.values(players).filter((p) => p.passSeason === sid).length; }
+  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers };
 };
