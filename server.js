@@ -116,7 +116,8 @@ const settings = Object.assign({ maintenanceMode: false, doubleRewards: false, g
 let saveTimer = null;
 function saveDB() { clearTimeout(saveTimer); saveTimer = setTimeout(() => writeJSON(DB_FILE, players), 300); }
 function saveSettings() { writeJSON(SETTINGS_FILE, settings); }
-process.on('SIGTERM', () => { writeJSON(DB_FILE, players); process.exit(0); });
+let economy = null;
+process.on('SIGTERM', () => { writeJSON(DB_FILE, players); if (economy) economy.flush(); process.exit(0); });
 
 function getOrCreatePlayer(id, extra) {
   const key = String(id);
@@ -194,7 +195,7 @@ function leaderboard(limit) {
     .filter((p) => !p.isBanned && p.bestLevel > 1)
     .sort((a, b) => (b.bestLevel - a.bestLevel) || (b.totalStars - a.totalStars))
     .slice(0, limit)
-    .map((p) => ({ id: p.id, name: p.name, username: p.username, bestLevel: p.bestLevel, totalStars: p.totalStars }));
+    .map((p) => ({ id: p.id, name: p.name, username: p.username, bestLevel: p.bestLevel, totalStars: p.totalStars, badge: economy ? economy.badgeOf(p.id) : null }));
 }
 function computeStats() {
   const all = Object.values(players);
@@ -436,6 +437,9 @@ app.post('/api/admin/broadcast', requireAdmin, (req, res) => {
   res.json({ success: true, total: Object.keys(players).length });
 });
 app.get('/api/admin/broadcast/status', requireAdmin, (req, res) => res.json({ success: true, ...broadcast }));
+
+/* ---------------- Экономика: предметы, маркет, обмены, Telegram Stars ---------------- */
+economy = require('./economy.js')({ app, requireUser, requireAdmin, getOrCreatePlayer, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, getBot: () => bot, DEV_TRUST_IDS });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
