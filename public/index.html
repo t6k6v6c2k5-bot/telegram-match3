@@ -70,6 +70,13 @@
           <button class="home-tile" id="tileLeaders"><span class="tile-ico">🏆</span><b>Рейтинг</b><small>Топ игроков</small></button>
         </div>
 
+        <button class="teaser pass-teaser" id="passTeaser">
+          <span class="teaser-ico">🎟️</span>
+          <span class="teaser-text"><b id="passTeaserTitle">Сезонный пропуск</b><small id="passTeaserSub">Уровень 0</small>
+            <span class="progress small"><span class="progress-fill" id="passTeaserFill"></span></span></span>
+          <span class="teaser-cta" id="passTeaserCta">Открыть ›</span><i class="dot hidden" id="dotPass"></i>
+        </button>
+
         <button class="teaser garden-teaser" id="gardenTeaser">
           <span class="teaser-ico" id="gardenTeaserIco">🌱</span>
           <span class="teaser-text"><b id="gardenTeaserTitle">Сад</b><small id="gardenTeaserSub">Стройте за звёзды</small>
@@ -272,9 +279,32 @@
       <h2>⚙️ Настройки</h2>
       <button class="setting-row" id="setSound"><span>🔊 Звуки</span><b class="toggle on" id="setSoundVal"></b></button>
       <button class="setting-row" id="setVibro"><span>📳 Вибрация</span><b class="toggle on" id="setVibroVal"></b></button>
+      <button class="setting-row" id="setNotify"><span>🔔 Напоминания в Telegram</span><b class="toggle on" id="setNotifyVal"></b></button>
+      <button class="setting-row" id="setShareProfile"><span>📤 Поделиться прогрессом</span><b>›</b></button>
       <button class="setting-row" id="setTutorial"><span>🎓 Пройти обучение заново</span><b>›</b></button>
       <button class="setting-row" id="setInvite"><span>👥 Пригласить друга (+300 🪙)</span><b>›</b></button>
       <p class="muted tiny" id="settingsInfo"></p>
+    </div>
+  </div>
+
+  <div id="modalPass" class="overlay hidden">
+    <div class="card pass-card">
+      <button class="modal-x" data-close="modalPass">✕</button>
+      <div id="passBody"></div>
+    </div>
+  </div>
+
+  <div id="modalShare" class="overlay hidden">
+    <div class="card share-card">
+      <button class="modal-x" data-close="modalShare">✕</button>
+      <h2>📤 Поделиться</h2>
+      <div class="share-preview"><img id="shareImg" alt="" /></div>
+      <button class="btn btn-primary btn-big" id="shareChat">💬 Отправить в чат</button>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="shareStory">📸 В историю</button>
+        <button class="btn btn-ghost" id="shareLink">🔗 Ссылкой</button>
+      </div>
+      <p class="muted tiny" id="shareNote">Друзья, которые придут по твоей ссылке, принесут тебе +300 🪙</p>
     </div>
   </div>
 
@@ -284,6 +314,7 @@
       <h2>⚙️ Админ-панель</h2>
       <div class="tabs admin-tabs" id="adminTabs">
         <button class="tab active" data-atab="stats">📊</button>
+        <button class="tab" data-atab="analytics">📈</button>
         <button class="tab" data-atab="players">👥</button>
         <button class="tab" data-atab="eco">💹</button>
         <button class="tab" data-atab="gift">🎁</button>

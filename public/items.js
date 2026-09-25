@@ -117,6 +117,15 @@
     { id: 'coins5k', title: 'Мешок монет', desc: '5 000 монет', stars: 25, grant: { soft: { coins: 5000 } }, icon: '🪙' },
     { id: 'boost', title: 'Сундук бустеров', desc: 'По 10 каждого бустера', stars: 60, grant: { soft: { boosters: { hammer: 10, shuffle: 10, rocket: 10, bomb: 10, rainbow: 10 } } }, icon: '🧰' }
   ];
+  // Сезонный пропуск: сезоны по 30 дней, общие для клиента и сервера
+  const SEASON_EPOCH = Date.UTC(2026, 8, 25);
+  const SEASON_MS = 30 * 86400000;
+  function seasonInfo(t) {
+    const n = Math.max(0, Math.floor(((t || Date.now()) - SEASON_EPOCH) / SEASON_MS));
+    const start = SEASON_EPOCH + n * SEASON_MS;
+    return { id: n + 1, start, end: start + SEASON_MS };
+  }
+  STARS_PRODUCTS.push({ id: 'pass', title: 'Премиум-пропуск', desc: 'Вторая линия наград текущего сезона', stars: 150, grant: { pass: true }, icon: '🎟️', hidden: true });
   ITEMS.filter((it) => it.stars).forEach((it) => STARS_PRODUCTS.push({ id: 'item_' + it.id, title: it.name, desc: 'Эксклюзивный предмет ★' + (it.limit ? ` · всего ${it.limit} шт.` : ''), stars: it.stars, grant: { item: it.id }, icon: '★', itemId: it.id }));
 
   function qualityOf(q) { return QUALITIES.find((x) => q < x.max) || QUALITIES[QUALITIES.length - 1]; }
@@ -132,5 +141,5 @@
     return -1;
   }
 
-  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance };
+  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, seasonInfo, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance };
 }));

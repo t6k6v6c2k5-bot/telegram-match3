@@ -684,3 +684,61 @@ input, textarea, select { font-family: inherit; user-select: text; -webkit-user-
 .btn-stars { background: linear-gradient(180deg, #ffe066, #f5a623); box-shadow: 0 5px 0 #a8660a; color: #402400; }
 .product.excl { border-color: var(--rc); background: linear-gradient(180deg, rgba(228,174,57,.22), rgba(255,255,255,.04)); }
 .btn-small { width: auto; padding: 7px 10px; }
+
+/* ---------------- Сезонный пропуск ---------------- */
+.pass-teaser { position: relative; background: linear-gradient(135deg, rgba(178,77,255,.35), rgba(255,210,63,.18)); border-color: rgba(255,210,63,.45); }
+.pass-teaser .dot { position: absolute; top: 6px; right: 8px; }
+.pass-card { width: min(420px, 100%); padding: 18px 14px 14px; text-align: left; display: flex; flex-direction: column; }
+.pass-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-right: 28px; }
+.pass-season { font-size: 40px; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 18px; background: rgba(0,0,0,.25); flex: none; }
+.pass-htext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pass-htext small { color: var(--muted); font-size: 11px; font-weight: 800; }
+.pass-htext b { font-size: 19px; }
+.pass-lvl { width: 54px; height: 54px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; font-weight: 1000; line-height: 1; background: linear-gradient(180deg, #ffe066, #f5a623); color: #402400; box-shadow: 0 0 16px rgba(255,210,63,.6); flex: none; }
+.pass-lvl small { font-size: 10px; font-weight: 800; }
+.pass-prem { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; margin-bottom: 8px; background: linear-gradient(135deg, rgba(255,210,63,.25), rgba(255,79,163,.2)); border: 1px solid rgba(255,210,63,.5); }
+.pass-prem > div { flex: 1; display: flex; flex-direction: column; }
+.pass-prem small { font-size: 11px; color: var(--muted); }
+.pass-prem .btn { width: auto; margin: 0; flex: none; }
+.pass-prem.on { justify-content: center; font-weight: 800; font-size: 13px; }
+.pass-cols { display: grid; grid-template-columns: 1fr 34px 1fr; gap: 6px; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; text-align: center; margin: 10px 0 4px; }
+.pass-list { position: relative; max-height: 46vh; overflow-y: auto; touch-action: pan-y; padding: 2px; }
+.pass-row { display: grid; grid-template-columns: 1fr 34px 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+.pass-tier { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 13px; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.2); }
+.pass-row.reached .pass-tier { background: linear-gradient(180deg, #ffe066, #f5a623); color: #402400; border-color: #fff3b0; }
+.pass-row.next .pass-tier { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,210,63,.7); }
+.pass-cell { position: relative; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 6px 4px; border-radius: 14px; background: rgba(255,255,255,.07); border: 1px solid var(--border); }
+.pass-cell.prem { background: rgba(255,210,63,.1); border-color: rgba(255,210,63,.3); }
+.pass-cell .pc-ico { font-size: 22px; line-height: 1.1; }
+.pass-cell small { font-size: 10px; font-weight: 700; color: var(--muted); text-align: center; line-height: 1.2; }
+.pass-cell.ready { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,210,63,.55); animation: pass-ready 1.4s ease-in-out infinite; }
+.pass-cell.ready small { color: #fff; }
+.pass-cell.got { opacity: .45; }
+.pass-cell.locked .pc-ico { filter: grayscale(.7); opacity: .6; }
+.pc-mark { position: absolute; top: 4px; right: 6px; font-style: normal; font-size: 12px; }
+@keyframes pass-ready { 50% { transform: scale(1.04); } }
+.avatar.frame-season { box-shadow: 0 0 0 3px #b24dff, 0 0 0 6px #ffd23f, 0 0 18px rgba(178,77,255,.8); animation: season-frame 2s ease-in-out infinite; }
+@keyframes season-frame { 50% { box-shadow: 0 0 0 3px #ffd23f, 0 0 0 6px #b24dff, 0 0 24px rgba(255,210,63,.8); } }
+
+/* ---------------- Поделиться ---------------- */
+.share-card { width: min(380px, 100%); }
+.share-preview { margin: 6px auto 4px; width: 72%; border-radius: 18px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.share-preview img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; background: #3a1580; }
+
+/* ---------------- Аналитика в админке ---------------- */
+.a-stats .a-stat small + b + small { margin-top: 2px; }
+.an-bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding: 8px 4px 0; border-radius: 14px; background: rgba(0,0,0,.25); }
+.an-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 0; position: relative; }
+.an-bar i { width: 100%; border-radius: 4px 4px 0 0; min-height: 2px; }
+.an-bar b { font-size: 9px; order: -1; margin-bottom: 2px; }
+.an-bar small { font-size: 8px; color: var(--muted); height: 16px; line-height: 16px; white-space: nowrap; }
+.an-row { display: grid; grid-template-columns: 56px 1fr 78px; gap: 8px; align-items: center; font-size: 12px; margin-top: 6px; }
+.an-row span:last-child { text-align: right; color: var(--muted); font-weight: 700; }
+.an-line { height: 10px; border-radius: 5px; background: rgba(255,255,255,.1); overflow: hidden; }
+.an-line i { display: block; height: 100%; background: linear-gradient(90deg, #ff6f86, #d62d4b); }
+.an-line.hard i { background: linear-gradient(90deg, #ffe066, #f5a623); }
+.an-table-wrap { max-height: 260px; overflow: auto; touch-action: pan-x pan-y; border-radius: 12px; background: rgba(0,0,0,.25); }
+.an-table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+.an-table th { position: sticky; top: 0; background: #2a1655; padding: 6px 5px; color: var(--muted); font-weight: 800; }
+.an-table td { padding: 5px; text-align: center; border-top: 1px solid rgba(255,255,255,.06); }
+.an-table tr.warn td { background: rgba(255,111,134,.15); }

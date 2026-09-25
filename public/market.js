@@ -174,7 +174,7 @@
           ${qualityBar(v.q)}
           <p class="muted tiny">${isLocked(v) ? '🔒 Продать или обменять можно через ' + leftText(v.lockUntil - Date.now()) : 'Можно продать на маркете или обменять'}</p>
         </div>
-        <div class="btn-row"><button class="btn btn-ghost" id="dropEquip" disabled>Надеть</button><button class="btn btn-primary" id="dropOk" disabled>Отлично!</button></div>`;
+        <div class="btn-row"><button class="btn btn-ghost" id="dropEquip" disabled>Надеть</button><button class="btn btn-ghost" id="dropShare" disabled>📤</button><button class="btn btn-primary" id="dropOk" disabled>Отлично!</button></div>`;
       A.openModal('modalDrop');
       const reel = $('reel'), wrap = reel.parentElement;
       const cw = 96; // ширина карточки + отступ
@@ -200,6 +200,13 @@
         if (d.r >= 2) { A.Sound.win(); A.rainConfetti(40 + d.r * 30); } else A.Sound.goal();
         A.haptic('success');
         $('dropOk').disabled = false;
+        const sh = $('dropShare');
+        sh.disabled = false;
+        sh.onclick = () => {
+          const emo = d.type === 'skin' ? d.data.slice(0, 3).join('') : d.type === 'badge' ? d.data : I.TYPES[d.type].icon;
+          A.shareCard('drop', { emoji: emo, title: (v.shiny ? '✨ ' : '') + d.name + ' #' + v.serial, color: r.color, accent: r.color,
+            lines: [r.name + ' · ' + I.TYPES[d.type].name, 'Качество: ' + I.qualityOf(v.q).name], text: `Мне выпал «${d.name}» (${r.name}) в Fruit Blitz! 🍓 Попробуй и ты` });
+        };
         const eq = $('dropEquip');
         eq.disabled = false;
         eq.onclick = async () => { await equip(v.uid, d.type); A.closeModal('modalDrop'); if (dropResolve) dropResolve(); };
@@ -545,14 +552,15 @@
   }
   async function afterPaid() {
     A.showToast('⭐ Оплата прошла! Зачисляем...');
-    const before = JSON.stringify([me && me.shards, me && me.inventory && me.inventory.length, me && me.vipUntil, me && me.once]);
+    const before = JSON.stringify([me && me.shards, me && me.inventory && me.inventory.length, me && me.vipUntil, me && me.once, me && me.passSeason]);
     for (let i = 0; i < 8; i++) {
       await wait(i ? 1500 : 400);
       await refresh();
-      if (JSON.stringify([me && me.shards, me && me.inventory && me.inventory.length, me && me.vipUntil, me && me.once]) !== before || (me && me.grants && me.grants.length)) break;
+      if (JSON.stringify([me && me.shards, me && me.inventory && me.inventory.length, me && me.vipUntil, me && me.once, me && me.passSeason]) !== before || (me && me.grants && me.grants.length)) break;
     }
     A.Sound.win(); A.haptic('success'); A.rainConfetti(90);
     A.renderShop();
+    if (A.onPaid) A.onPaid();
     if (A.currentScreen === 'screenMarket') render();
   }
 
@@ -585,6 +593,6 @@
     }));
   }
 
-  window.FBMarket = { render, setTab, refresh, startRun, finishRun, skinEmojis, boardBg, fxColor, myBadge, decorateAvatar, isVip, renderStarsShop, renderAdminEco, showDrop, get me() { return me; } };
+  window.FBMarket = { render, setTab, refresh, startRun, finishRun, skinEmojis, boardBg, fxColor, myBadge, decorateAvatar, isVip, renderStarsShop, renderAdminEco, showDrop, buyStars, get me() { return me; } };
   updateDots();
 })();

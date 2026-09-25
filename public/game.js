@@ -133,14 +133,16 @@
     gold: { name: 'Золотая', icon: '✨', unlock: 'Сад: Фруктовая поляна', gems: 15 },
     neon: { name: 'Неоновая', icon: '⚡', gems: 30 },
     fire: { name: 'Огненная', icon: '🔥', gems: 50 },
-    rainbow: { name: 'Радужная', icon: '🌈', unlock: 'Сад: Ягодный пляж' }
+    rainbow: { name: 'Радужная', icon: '🌈', unlock: 'Сад: Ягодный пляж' },
+    season: { name: 'Сезонная', icon: '🎟️', unlock: 'Премиум-пропуск, уровень 20' }
   };
   const TITLES = {
     novice: { name: 'Новичок', icon: '🌱', price: 0 },
     baron: { name: 'Фруктовый Барон', icon: '👑', gems: 20 },
     master: { name: 'Мастер Блитца', icon: '⚡', gems: 40 },
     gardener: { name: 'Главный Садовник', icon: '🌳', unlock: 'Сад: Сладкий город' },
-    legend: { name: 'Легенда', icon: '🏆', unlock: 'Пройди 50 уровней' }
+    legend: { name: 'Легенда', icon: '🏆', unlock: 'Пройди 50 уровней' },
+    season: { name: 'Легенда сезона', icon: '🎟️', unlock: 'Премиум-пропуск, уровень 30' }
   };
   const BOOSTERS = {
     hammer: { icon: '🔨', name: 'Молот', desc: 'Разбивает одну фишку или ящик', price: 120 },
@@ -243,7 +245,7 @@
       garden: { area: 0, built: [], areasDone: 0 },
       daily: null, login: { last: null, streak: 0 },
       wheelLast: 0, freeGiftLast: 0, starterBought: false, dealDay: null,
-      achClaimed: {}, claimedGifts: {},
+      achClaimed: {}, claimedGifts: {}, pass: null,
       tutorialDone: false, tips: {},
       adminRev: 0, resetToken: null,
       stats: { totalCleared: 0, specialsMade: 0, bestCombo: 0, coinsEarned: 0, wins: 0, gardenBuilt: 0, boostersUsed: 0, bestScore: 0, perfects: 0 }
@@ -556,6 +558,7 @@
   const giftReady = () => Date.now() - (state.freeGiftLast || 0) >= 4 * 3600 * 1000;
   const loginReady = () => state.login.last !== dayKey();
   function gardenCanBuild() {
+    renderPassTeaser();
     const area = gardenArea(state.garden.area);
     return area.items.some((it, i) => !state.garden.built.includes(i) && state.starsBank >= it[2]);
   }
@@ -812,6 +815,8 @@
     board.st = E.createBoard(board.cfg, { preBoosters: pre, seed: run ? run.seed : undefined });
     board.done = false; board.busy = false; board.armed = null; board.selected = null; paused = false;
     board.snap = { cleared: 0, specials: 0 };
+    board.t0 = Date.now();
+    track('lvl_start', { n });
     board.goalPrev = board.st.goals.map((g) => g.count);
     saveState();
     showScreen('screenGame');
@@ -1339,7 +1344,9 @@
     if (state.unlockedLevel > 50) state.ownedTitles.legend = true;
     saveNow();
     scheduleSync(400);
-    lastResult = { n, stars, coins, gained, firstClear, moves: st.moves, par: st.par, score: st.score };
+    const xp = addPassXp(firstClear ? 20 + stars * 5 : 10);
+    track('lvl_win', { n, moves: st.moves, ms: Date.now() - (board.t0 || Date.now()), stars });
+    lastResult = { n, stars, coins, gained, firstClear, moves: st.moves, par: st.par, score: st.score, xp };
     showResult(lastResult);
     if (MK() && board.run) MK().finishRun(board.run);
     board.run = null;
@@ -1349,6 +1356,7 @@
     $('resultMoves').textContent = `Ходов: ${r.moves} · Очки: ${fmt(r.score)}`;
     const pills = [['🪙', '+' + r.coins + (serverSettings.doubleRewards ? ' (×2)' : '')]];
     if (r.gained) pills.push(['⭐', '+' + r.gained + ' в Сад']);
+    if (r.xp) pills.push(['🎟️', '+' + r.xp + ' XP']);
     $('resultRewards').innerHTML = pills.map(([i, t], k) => `<div class="reward-pill" style="animation-delay:${0.9 + k * 0.15}s">${i} ${esc(t)}</div>`).join('');
     const note = $('resultNote');
     let noteText = '';
@@ -1378,7 +1386,7 @@
   });
   $('btnResultGarden').addEventListener('click', () => { closeModal('modalResult'); board.st = null; showScreen('screenGarden'); });
   $('btnResultRetry').addEventListener('click', () => { closeModal('modalResult'); const n = lastResult ? lastResult.n : board.level; board.st = null; showScreen('screenMap'); openIntro(n); });
-  $('btnResultShare').addEventListener('click', () => shareText(`Я прошёл уровень ${lastResult ? lastResult.n : ''} в Fruit Blitz на ${'⭐'.repeat(lastResult ? lastResult.stars : 1)}! Сможешь лучше? 🍓`));
+  $('btnResultShare').addEventListener('click', () => shareLevel(lastResult));
 
   /* ---------------- Пауза / выход ---------------- */
   function openPause() {
@@ -1393,6 +1401,7 @@
   $('btnResume').addEventListener('click', () => { closeModal('modalPause'); paused = false; scheduleHint(); });
   $('btnPauseSound').addEventListener('click', () => { state.sound = !state.sound; saveState(); $('btnPauseSound').textContent = state.sound ? '🔊 Звук: вкл' : '🔇 Звук: выкл'; });
   function leaveLevel() {
+    if (board.st && !board.done) track('lvl_quit', { n: board.level, moves: board.st.moves });
     if (board.st && board.st.moves > 0 && !board.done) loseLife();
     board.st = null; paused = false; clearHint();
     closeModal('modalPause');
@@ -1662,12 +1671,12 @@
           ${claimed ? '<span class="t-done">✓</span>' : done ? '<button class="btn btn-gold">Забрать</button>' : `<span class="q-count">${v}/${q.target}</span>`}</div>
           <div class="progress"><div class="progress-fill" style="width:${v / q.target * 100}%"></div></div></div>`);
         const btn = card.querySelector('button');
-        if (btn) btn.addEventListener('click', () => { state.daily.claimed[id] = true; saveState(); showReward(q.reward, { title: 'Задание выполнено!', icon: q.icon }).then(renderQuests); });
+        if (btn) btn.addEventListener('click', () => { state.daily.claimed[id] = true; addPassXp(30); saveState(); showReward(q.reward, { title: 'Задание выполнено!', icon: q.icon }).then(renderQuests); });
         body.appendChild(card);
       });
       const allClaimed = state.daily.quests.every((id) => state.daily.claimed[id]);
       const bonus = el(`<div class="hero-deal pink"><span class="h-ico">🧰</span><div class="h-text"><b>Бонус за все задания</b><small>Большой сундук · новые задания завтра</small></div><button class="btn ${allClaimed && !state.daily.bonus ? 'btn-gold' : 'btn-ghost'}" ${allClaimed && !state.daily.bonus ? '' : 'disabled'}>${state.daily.bonus ? '✓' : 'Открыть'}</button></div>`);
-      bonus.querySelector('button').addEventListener('click', () => { state.daily.bonus = true; saveState(); showReward(rollChest('big'), { title: 'Бонус дня!', icon: '🧰', chest: true }).then(renderQuests); });
+      bonus.querySelector('button').addEventListener('click', () => { state.daily.bonus = true; addPassXp(60); saveState(); showReward(rollChest('big'), { title: 'Бонус дня!', icon: '🧰', chest: true }).then(renderQuests); });
       body.appendChild(bonus);
     } else if (questTab === 'login') {
       const ready = loginReady();
@@ -1705,6 +1714,7 @@
     const yest = dayKey(new Date(Date.now() - 864e5));
     state.login.streak = state.login.last === yest ? (state.login.streak % 7) + 1 : 1;
     state.login.last = dayKey();
+    addPassXp(20);
     saveState();
     showReward(LOGIN_REWARDS[state.login.streak - 1], { title: 'Награда дня ' + state.login.streak, icon: state.login.streak === 7 ? '👑' : '📅' }).then(() => { if (currentScreen === 'screenQuests') renderQuests(); });
   }
@@ -1775,6 +1785,260 @@
      15. НАСТРОЙКИ, ЖИЗНИ, ПОДЕЛИТЬСЯ
      ============================================================ */
   function refLink() { return `https://t.me/game_crashfr_bot?start=ref_${playerId}`; }
+  /* ============================================================
+     14b. АНАЛИТИКА: события уровней (агрегаты для админки)
+     ============================================================ */
+  const trackQ = [];
+  let trackTimer = null;
+  function track(type, data) {
+    if (playerId === 'guest') return;
+    trackQ.push(Object.assign({ type }, data || {}));
+    clearTimeout(trackTimer);
+    if (trackQ.length >= 20) flushTrack(); else trackTimer = setTimeout(flushTrack, 15000);
+  }
+  function flushTrack() {
+    clearTimeout(trackTimer);
+    if (!trackQ.length || playerId === 'guest') return;
+    api('/api/track', { method: 'POST', body: { telegram_id: playerId, events: trackQ.splice(0, 50) } });
+  }
+
+  /* ============================================================
+     14c. СЕЗОННЫЙ ПРОПУСК
+     ============================================================ */
+  const PASS_TIERS = 30, PASS_XP = 200;
+  const SEASON_NAMES = [['🍂', 'Осенний урожай'], ['❄️', 'Зимняя сказка'], ['🌸', 'Весенний сад'], ['🏖️', 'Летний бриз'], ['🍍', 'Тропическая лихорадка'], ['🌌', 'Звездопад']];
+  const seasonNow = () => window.FBItems.seasonInfo();
+  const seasonMeta = (id) => SEASON_NAMES[(id - 1) % SEASON_NAMES.length];
+  const PB = ['hammer', 'shuffle', 'rocket', 'bomb', 'rainbow'];
+  function passRewards(t) {
+    let free, prem;
+    if (t % 10 === 0) free = { chest: t === 30 ? 'legend' : 'big' };
+    else if (t % 5 === 0) free = { chest: 'small' };
+    else if (t % 4 === 0) free = { gems: 5 + Math.floor(t / 4) };
+    else if (t % 2 === 0) free = { boosters: { [PB[(t / 2) % 3]]: 1 } };
+    else free = { coins: 150 + t * 20 };
+    if (t === 30) prem = { title: 'season', gems: 100 };
+    else if (t === 20) prem = { frame: 'season' };
+    else if (t % 10 === 0) prem = { chest: 'legend' };
+    else if (t % 5 === 0) prem = { chest: 'big', gems: 15 };
+    else if (t % 3 === 0) prem = { boosters: { [PB[3 + (t % 2)]]: 2 } };
+    else if (t % 4 === 1) prem = { infiniteMin: 30 };
+    else prem = { coins: 400 + t * 40, gems: 5 };
+    return { free, prem };
+  }
+  function ensurePass() {
+    const s = seasonNow();
+    if (!state.pass || state.pass.season !== s.id) { state.pass = { season: s.id, xp: 0, free: {}, prem: {} }; saveState(); }
+    return state.pass;
+  }
+  const passLevel = () => Math.min(PASS_TIERS, Math.floor(ensurePass().xp / PASS_XP));
+  const isPremium = () => !!(MK() && MK().me && MK().me.passSeason === seasonNow().id);
+  function passClaimable() {
+    const P = ensurePass(), lvl = passLevel(), prem = isPremium();
+    let n = 0;
+    for (let t = 1; t <= lvl; t++) { if (!P.free[t]) n++; if (prem && !P.prem[t]) n++; }
+    return n;
+  }
+  function addPassXp(n) {
+    const P = ensurePass();
+    const before = passLevel();
+    P.xp += n;
+    const after = passLevel();
+    saveState();
+    if (after > before) setTimeout(() => showToast(`🎟️ Пропуск: уровень ${after}! Забери награду`), 600);
+    return n;
+  }
+  function leftShort(ms) {
+    const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5);
+    return d > 0 ? `${d} д ${h} ч` : `${h} ч ${Math.floor(ms % 36e5 / 6e4)} мин`;
+  }
+  function renderPassTeaser() {
+    const s = seasonNow(), lvl = passLevel(), xp = ensurePass().xp, n = passClaimable();
+    $('passTeaserTitle').textContent = `${seasonMeta(s.id)[0]} Пропуск: ${seasonMeta(s.id)[1]}`;
+    $('passTeaserSub').textContent = `Уровень ${lvl}/${PASS_TIERS}${isPremium() ? ' 👑' : ''} · ⏳ ${leftShort(s.end - Date.now())}`;
+    $('passTeaserFill').style.width = (lvl >= PASS_TIERS ? 100 : (xp % PASS_XP) / PASS_XP * 100) + '%';
+    $('passTeaserCta').textContent = n ? `Забрать (${n})` : 'Открыть ›';
+    $('dotPass').classList.toggle('hidden', !n);
+  }
+  function passCell(line, t, rw, reached, unlocked) {
+    const got = !!ensurePass()[line][t];
+    const items = rewardItems(rw);
+    const label = items.map((x) => x[1]).join(' · ');
+    const cls = got ? 'got' : !unlocked ? 'locked' : reached ? 'ready' : '';
+    return `<button class="pass-cell ${line} ${cls}" data-pc="${line}:${t}" ${cls === 'ready' ? '' : 'disabled'}>
+      <span class="pc-ico">${items.map((x) => x[0]).join('')}</span><small>${esc(label)}</small>
+      ${got ? '<i class="pc-mark">✓</i>' : !unlocked ? '<i class="pc-mark">🔒</i>' : ''}</button>`;
+  }
+  function renderPass() {
+    const P = ensurePass(), s = seasonNow(), [ico, name] = seasonMeta(s.id);
+    const lvl = passLevel(), prem = isPremium(), n = passClaimable();
+    const xpIn = lvl >= PASS_TIERS ? PASS_XP : P.xp - lvl * PASS_XP;
+    let rows = '';
+    for (let t = 1; t <= PASS_TIERS; t++) {
+      const r = passRewards(t), reached = t <= lvl;
+      rows += `<div class="pass-row${reached ? ' reached' : ''}${t === lvl + 1 ? ' next' : ''}" id="passRow${t}">
+        ${passCell('free', t, r.free, reached, true)}<div class="pass-tier">${t}</div>${passCell('prem', t, r.prem, reached, prem)}</div>`;
+    }
+    $('passBody').innerHTML = `
+      <div class="pass-head"><div class="pass-season">${ico}</div><div class="pass-htext"><small>Сезон ${s.id} · осталось ${leftShort(s.end - Date.now())}</small><b>${esc(name)}</b></div>
+        <div class="pass-lvl"><small>ур.</small>${lvl}</div></div>
+      <div class="progress"><div class="progress-fill" style="width:${xpIn / PASS_XP * 100}%"></div></div>
+      <p class="muted tiny" style="margin:4px 0 8px">${lvl >= PASS_TIERS ? 'Пропуск пройден полностью! 🎉' : `${xpIn}/${PASS_XP} XP до уровня ${lvl + 1}`}</p>
+      ${prem ? '<div class="pass-prem on">👑 Премиум-пропуск активен — забирай обе линии наград!</div>'
+        : `<div class="pass-prem"><div><b>👑 Премиум-пропуск</b><small>Легендарные сундуки, бесконечные жизни, рамка и звание «Легенда сезона». Награды с уже открытых уровней — сразу!</small></div><button class="btn btn-stars" id="passBuy">⭐ 150</button></div>`}
+      ${n ? `<button class="btn btn-gold" id="passClaimAll">🎁 Забрать всё (${n})</button>` : ''}
+      <div class="pass-cols"><span>Бесплатно</span><span></span><span>Премиум 👑</span></div>
+      <div class="pass-list" id="passList">${rows}</div>
+      <p class="muted tiny" style="margin-top:10px">XP: новый уровень +20 и +5 за каждую ⭐ · повтор уровня +10 · задание дня +30 · все задания +60 · награда за вход +20. Незабранные награды сгорают в конце сезона.</p>`;
+    qsa('[data-pc]', $('passBody')).forEach((b) => b.addEventListener('click', () => { const [line, t] = b.dataset.pc.split(':'); claimPass([[line, +t]]); }));
+    if ($('passClaimAll')) $('passClaimAll').addEventListener('click', () => {
+      const list = [];
+      for (let t = 1; t <= lvl; t++) { if (!P.free[t]) list.push(['free', t]); if (prem && !P.prem[t]) list.push(['prem', t]); }
+      claimPass(list);
+    });
+    if ($('passBuy')) $('passBuy').addEventListener('click', () => {
+      if (playerId === 'guest') { showToast('Покупки доступны внутри Telegram'); return; }
+      track('pass_buy_click');
+      if (MK() && MK().buyStars) MK().buyStars('pass');
+    });
+  }
+  async function claimPass(list) {
+    const P = ensurePass(), total = { coins: 0, gems: 0, boosters: {} }, chests = [];
+    let extra = {};
+    list.forEach(([line, t]) => {
+      if (P[line][t] || t > passLevel() || (line === 'prem' && !isPremium())) return;
+      P[line][t] = true;
+      const rw = passRewards(t)[line];
+      if (rw.chest) chests.push(rw.chest);
+      if (rw.coins) total.coins += rw.coins;
+      if (rw.gems) total.gems += rw.gems;
+      if (rw.boosters) Object.keys(rw.boosters).forEach((k) => { total.boosters[k] = (total.boosters[k] || 0) + rw.boosters[k]; });
+      if (rw.infiniteMin) extra.infiniteMin = (extra.infiniteMin || 0) + rw.infiniteMin;
+      ['frame', 'title'].forEach((k) => { if (rw[k]) extra[k] = rw[k]; });
+    });
+    saveNow();
+    track('pass_claim', { k: String(list.length) });
+    const rw = Object.assign(total, extra);
+    if (!Object.keys(rw.boosters).length) delete rw.boosters;
+    if (!rw.coins) delete rw.coins;
+    if (!rw.gems) delete rw.gems;
+    closeModal('modalPass');
+    if (Object.keys(rw).length) await showReward(rw, { title: 'Награды пропуска', icon: '🎟️' });
+    for (const c of chests) await showReward(rollChest(c), { title: CHESTS[c].name, icon: CHESTS[c].icon, chest: true });
+    scheduleSync();
+    openPass();
+  }
+  function openPass() { renderPass(); openModal('modalPass'); track('pass_open'); const row = $('passRow' + Math.min(PASS_TIERS, passLevel() + 1)), list = $('passList'); if (row && list) list.scrollTop = Math.max(0, row.offsetTop - list.clientHeight / 2 + row.clientHeight / 2); }
+  $('passTeaser').addEventListener('click', () => { Sound.click(); openPass(); });
+
+  /* ============================================================
+     14d. ПОДЕЛИТЬСЯ: красивая карточка-картинка
+     ============================================================ */
+  const SHARE_FONT = '-apple-system, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function drawShareCard(o, W, H) {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const c = cv.getContext('2d');
+    const bg = c.createLinearGradient(0, 0, W * 0.4, H);
+    bg.addColorStop(0, '#7b3fe4'); bg.addColorStop(0.5, '#3a1580'); bg.addColorStop(1, '#16072f');
+    c.fillStyle = bg; c.fillRect(0, 0, W, H);
+    const glow = c.createRadialGradient(W / 2, H * 0.45, 20, W / 2, H * 0.45, W * 0.7);
+    glow.addColorStop(0, (o.accent || '#ffd23f') + '66'); glow.addColorStop(1, 'transparent');
+    c.fillStyle = glow; c.fillRect(0, 0, W, H);
+    // фоновые фрукты
+    const fr = ['🍓', '🍊', '🍋', '🍇', '🍏', '🫐', '🍉', '🍒'];
+    c.fillStyle = '#fff'; c.globalAlpha = 0.16; c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (let i = 0; i < 16; i++) { c.font = `${70 + (i * 37) % 60}px ${SHARE_FONT}`; c.fillText(fr[i % fr.length], ((i * 331) % 1000) / 1000 * W, ((i * 571) % 1000) / 1000 * H); }
+    c.globalAlpha = 1;
+    // логотип
+    const top = H * 0.075;
+    c.font = `900 ${W * 0.105}px ${SHARE_FONT}`;
+    c.fillStyle = '#b02a6e'; c.fillText('FRUIT BLITZ', W / 2, top + 8);
+    const lg = c.createLinearGradient(0, top - 60, 0, top + 60); lg.addColorStop(0, '#ffffff'); lg.addColorStop(1, '#ffd23f');
+    c.fillStyle = lg; c.fillText('FRUIT BLITZ', W / 2, top);
+    // панель
+    const pw = W * 0.86, ph = H * 0.62, px = (W - pw) / 2, py = H * 0.15;
+    roundRect(c, px, py, pw, ph, 60); c.fillStyle = 'rgba(255,255,255,0.11)'; c.fill();
+    c.lineWidth = 4; c.strokeStyle = 'rgba(255,255,255,0.28)'; c.stroke();
+    // Цвет заливки влияет на прозрачность эмодзи — рисуем их непрозрачным белым
+    c.fillStyle = '#fff';
+    c.font = `${Math.min(W * 0.22, ph * 0.26)}px ${SHARE_FONT}`; c.fillText(o.emoji || '🏆', W / 2, py + ph * 0.2);
+    c.font = `900 ${W * (o.title.length > 18 ? 0.058 : 0.074)}px ${SHARE_FONT}`;
+    c.fillText(o.title, W / 2, py + ph * 0.44, pw - 60);
+    let y = py + ph * 0.44;
+    if (o.stars != null) {
+      y += ph * 0.15;
+      c.font = `${W * 0.085}px ${SHARE_FONT}`;
+      [0, 1, 2].forEach((i) => { c.globalAlpha = i < o.stars ? 1 : 0.25; c.fillText('⭐', W / 2 + (i - 1) * W * 0.12, y); });
+      c.globalAlpha = 1;
+      y += ph * 0.04;
+    } else y += ph * 0.03;
+    c.font = `700 ${W * 0.04}px ${SHARE_FONT}`; c.fillStyle = 'rgba(255,255,255,0.88)';
+    (o.lines || []).forEach((ln) => { y += ph * 0.1; c.fillText(ln, W / 2, y, pw - 60); });
+    if (o.color) { c.fillStyle = o.color; c.fillRect(px + 60, py + ph - 26, pw - 120, 10); }
+    // игрок
+    const fy = py + ph + H * 0.07;
+    c.font = `800 ${W * 0.045}px ${SHARE_FONT}`; c.fillStyle = '#fff';
+    const t = TITLES[state.equippedTitle] || TITLES.novice;
+    c.fillText(`${displayName} · ${t.icon} ${t.name}`, W / 2, fy);
+    // призыв
+    const cy = H - H * 0.075, cw = W * 0.8, ch = H * 0.07;
+    roundRect(c, (W - cw) / 2, cy - ch / 2, cw, ch, ch / 2);
+    const cg = c.createLinearGradient(0, cy - ch / 2, 0, cy + ch / 2); cg.addColorStop(0, '#7cf5b6'); cg.addColorStop(1, '#16994f');
+    c.fillStyle = cg; c.fill();
+    c.fillStyle = '#fff'; c.font = `900 ${W * 0.036}px ${SHARE_FONT}`;
+    c.fillText(`▶ Играй в Telegram: @${BOT_NAME}`, W / 2, cy + 2);
+    return cv;
+  }
+  const BOT_NAME = 'game_crashfr_bot';
+  let shareCtx = null;
+  function canShareMsg() { try { return !!(tg && tg.shareMessage && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')); } catch (e) { return false; } }
+  function canShareStory() { try { return !!(tg && tg.shareToStory && tg.isVersionAtLeast && tg.isVersionAtLeast('7.8')); } catch (e) { return false; } }
+  function shareCard(kind, o) {
+    const img = drawShareCard(o, 1080, 1350).toDataURL('image/jpeg', 0.86);
+    shareCtx = { kind, o, img, prepared: null, story: null };
+    $('shareImg').src = img;
+    $('shareStory').classList.toggle('hidden', !canShareStory());
+    openModal('modalShare');
+    track('share_open', { k: kind });
+  }
+  function uploadShare(image, caption) {
+    return api('/api/share/prepare', { method: 'POST', body: { telegram_id: playerId, image, caption } }).then((r) => (r.ok && r.data ? r.data : null));
+  }
+  $('shareChat').addEventListener('click', async () => {
+    const s = shareCtx; if (!s) return;
+    if (playerId === 'guest' || !canShareMsg()) { shareText(s.o.text); track('share', { k: s.kind + '_link' }); return; }
+    const b = $('shareChat'); b.disabled = true; b.textContent = '⏳ Готовим...';
+    if (!s.prepared) s.prepared = await uploadShare(s.img, s.o.text);
+    b.disabled = false; b.textContent = '💬 Отправить в чат';
+    if (s.prepared && s.prepared.preparedId) {
+      try { tg.shareMessage(s.prepared.preparedId, (sent) => { if (sent) { track('share', { k: s.kind + '_chat' }); showToast('✅ Отправлено!'); closeModal('modalShare'); } }); return; } catch (e) { /* ниже — запасной вариант */ }
+    }
+    shareText(s.o.text); track('share', { k: s.kind + '_link' });
+  });
+  $('shareStory').addEventListener('click', async () => {
+    const s = shareCtx; if (!s) return;
+    const b = $('shareStory'); b.disabled = true; b.textContent = '⏳';
+    if (!s.story) s.story = await uploadShare(drawShareCard(s.o, 1080, 1920).toDataURL('image/jpeg', 0.86), '');
+    b.disabled = false; b.textContent = '📸 В историю';
+    if (!s.story) { showToast('⚠️ Не удалось подготовить картинку'); return; }
+    try { tg.shareToStory(s.story.url, { text: (s.o.text + ' ' + (s.story.refLink || '')).slice(0, 200) }); track('share', { k: s.kind + '_story' }); } catch (e) { showToast('⚠️ Истории недоступны в этой версии Telegram'); }
+  });
+  $('shareLink').addEventListener('click', () => { if (shareCtx) { shareText(shareCtx.o.text); track('share', { k: shareCtx.kind + '_link' }); } });
+  function shareLevel(r) {
+    if (!r) return;
+    const ch = E.chapterOf(r.n);
+    shareCard('level', { emoji: r.stars === 3 ? '🏆' : ch.emoji, title: `Уровень ${r.n} пройден!`, stars: r.stars,
+      lines: [`${r.moves} ходов · ${fmt(r.score)} очков`, `Глава ${ch.number}: ${ch.name}`],
+      text: `Я прошёл уровень ${r.n} в Fruit Blitz на ${'⭐'.repeat(r.stars)}! Сможешь лучше? 🍓` });
+  }
+  function shareProfile() {
+    const done = Math.max(0, state.unlockedLevel - 1);
+    shareCard('profile', { emoji: (TITLES[state.equippedTitle] || TITLES.novice).icon, title: displayName,
+      lines: [`🚩 Пройдено уровней: ${done}`, `⭐ Звёзд: ${totalStars()} · 🌳 Областей сада: ${state.garden.areasDone || 0}`, `🎟️ Пропуск: уровень ${passLevel()}`],
+      text: `Мой прогресс в Fruit Blitz: ${done} уровней и ⭐${totalStars()}! Догонишь? 🍓` });
+  }
+
   function shareText(text) {
     const url = `https://t.me/share/url?url=${encodeURIComponent(refLink())}&text=${encodeURIComponent(text)}`;
     try { if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); return; } } catch (e) { /* noop */ }
@@ -1784,11 +2048,20 @@
   function renderSettings() {
     $('setSoundVal').className = 'toggle' + (state.sound ? ' on' : '');
     $('setVibroVal').className = 'toggle' + (state.vibration ? ' on' : '');
+    $('setNotifyVal').className = 'toggle' + (notifyOn ? ' on' : '');
     $('settingsInfo').textContent = `ID: ${playerId} · Fruit Blitz v3`;
   }
   $('btnSettings').addEventListener('click', () => { renderSettings(); openModal('modalSettings'); });
   $('setSound').addEventListener('click', () => { state.sound = !state.sound; saveState(); renderSettings(); if (state.sound) Sound.click(); });
   $('setVibro').addEventListener('click', () => { state.vibration = !state.vibration; saveState(); renderSettings(); haptic('medium'); });
+  $('setNotify').addEventListener('click', async () => {
+    if (playerId === 'guest') { showToast('Доступно внутри Telegram'); return; }
+    notifyOn = !notifyOn; renderSettings();
+    const r = await api('/api/notify', { method: 'POST', body: { telegram_id: playerId, on: notifyOn } });
+    if (!r.ok) { notifyOn = !notifyOn; renderSettings(); showToast('⚠️ Нет связи с сервером'); return; }
+    showToast(notifyOn ? '🔔 Бот напомнит о жизнях и подарках' : '🔕 Напоминания выключены');
+  });
+  $('setShareProfile').addEventListener('click', () => { closeModal('modalSettings'); shareProfile(); });
   $('setTutorial').addEventListener('click', () => { state.tips = {}; state.tutorialDone = false; saveState(); closeModal('modalSettings'); showScreen('screenHome'); setTimeout(homeTutorial, 300); });
   $('setInvite').addEventListener('click', () => shareText('Играю в Fruit Blitz — залипательные три в ряд прямо в Telegram 🍓 Заходи!'));
 
@@ -1848,6 +2121,7 @@
 
   function homeTutorial() {
     if (state.tutorialDone || currentScreen !== 'screenHome') return;
+    if (anyModalOpen()) { setTimeout(homeTutorial, 800); return; } // сначала игрок закроет окно (подарок и т.п.)
     showCoach({ text: 'Привет! Я Клубничка 🍓<br>Нажми <b>ИГРАТЬ</b> — пройдём первый уровень вместе!', target: $('btnHomePlay') });
   }
   function levelTutorials() {
@@ -1902,8 +2176,18 @@
   function progressPayload() {
     return { telegram_id: playerId, name: tgUser ? tgUser.first_name : '', username: tgUser ? tgUser.username : '',
       level: state.unlockedLevel, totalStars: totalStars(), starsBank: state.starsBank, coins: state.coins, gems: state.gems,
-      lives: state.lives, boosters: state.boosters, score: state.stats.bestScore, adminRev: state.adminRev };
+      lives: state.lives, boosters: state.boosters, score: state.stats.bestScore, adminRev: state.adminRev,
+      tz: -new Date().getTimezoneOffset(), timers: reminderTimers(), passUnclaimed: passClaimable() };
   }
+  // Когда что-то снова станет доступно — сервер напомнит через бота, если игрок не зашёл сам
+  function reminderTimers() {
+    const t = Date.now();
+    let livesAt = 0;
+    if (!hasInfiniteLives() && state.lives < MAX_LIVES && state.nextLifeAt) livesAt = state.nextLifeAt + (MAX_LIVES - state.lives - 1) * LIFE_REGEN_MS;
+    const giftAt = (state.freeGiftLast || 0) + 4 * 3600000, wheelAt = (state.wheelLast || 0) + 24 * 3600000;
+    return { livesAt, giftAt: giftAt > t ? giftAt : 0, wheelAt: wheelAt > t ? wheelAt : 0 };
+  }
+  let notifyOn = true;
   function showBlocked(id) { $(id).classList.remove('hidden'); }
   async function syncWithServer() {
     if (playerId === 'guest' || syncing) return;
@@ -1916,6 +2200,7 @@
       $('bannedScreen').classList.add('hidden');
       applyServerSettings(pull.data.settings);
       mergeServerPlayer(pull.data.player);
+      if (pull.data.player.notify) notifyOn = pull.data.player.notify.on !== false;
       if (MK()) MK().refresh();
       let push = await api('/api/save-progress', { method: 'POST', body: progressPayload() });
       if (push.status === 409 && push.data && push.data.player) {
@@ -2048,6 +2333,57 @@
         const gift = { coins: +$('gCoins').value || 0, gems: +$('gGems').value || 0, booster: $('gBooster').value || null, boosterAmount: +$('gBAmt').value || 0, message: $('gMsg').value };
         const res = await api('/api/admin/settings', { method: 'POST', body: abody({ globalGift: gift }) });
         if (res.ok) { showToast('🎁 Подарок отправлен всем!'); renderAdmin(); } else aErr(res);
+      });
+    } else if (adminTab === 'analytics') {
+      const r = await api('/api/admin/analytics?' + aqs());
+      if (!r.ok) { aErr(r); body.innerHTML = '<p class="empty">Нет доступа</p>'; return; }
+      const a = r.data.a;
+      const stat = (l, v, sub) => `<div class="a-stat"><small>${l}</small><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+      const ret = (x) => (x.rate == null ? '—' : x.rate + '%');
+      const retSub = (x) => (x.cohort ? `${x.kept} из ${x.cohort}` : 'мало данных');
+      const bars = (vals, fmtv, color) => {
+        const max = Math.max(1, ...vals.map((v) => v.v));
+        return `<div class="an-bars">${vals.map((v) => `<div class="an-bar"><i style="height:${Math.max(2, v.v / max * 100)}%;background:${color}"></i><b>${fmtv(v.v)}</b><small>${v.l}</small></div>`).join('')}</div>`;
+      };
+      const dl = (d) => d.slice(8, 10) + '.' + d.slice(5, 7);
+      const stuck = a.levels.filter((l) => l.stuck).sort((x, y) => y.stuck - x.stuck).slice(0, 6);
+      const hard = a.levels.filter((l) => l.s >= 5 && l.winRate != null).sort((x, y) => x.winRate - y.winRate).slice(0, 6);
+      const maxStuck = Math.max(1, ...stuck.map((l) => l.stuck));
+      const e7 = a.events7, n7 = a.notif7;
+      const sumK = (o, pre) => Object.keys(o).filter((k) => k.startsWith(pre)).reduce((s2, k) => s2 + o[k], 0);
+      const NT = { lives: '❤️ Жизни', gift: '🎁 Подарок', wheel: '🎡 Колесо', away2: '🍓 2 дня', away7: '🌳 7 дней', season: '⏳ Сезон', test: '🧪 Тест' };
+      body.innerHTML = `<p class="muted tiny">Данные собираются с ${new Date(a.since).toLocaleDateString('ru-RU')}. Удержание считается только по игрокам, пришедшим после этой даты.</p>
+        <div class="a-stats">${stat('🟢 Сегодня', a.dau)}${stat('📅 За 7 дней', a.wau)}${stat('🗓 За 30 дней', a.mau)}${stat('👥 Всего', a.total)}</div>
+        <p class="section-label">🔁 Удержание (вернулись через N дней)</p>
+        <div class="a-stats">${stat('День 1', ret(a.ret.d1), retSub(a.ret.d1))}${stat('День 7', ret(a.ret.d7), retSub(a.ret.d7))}${stat('День 30', ret(a.ret.d30), retSub(a.ret.d30))}</div>
+        <p class="muted tiny">Ориентир для казуальных игр: день 1 — 30–40%, день 7 — 10–15%.</p>
+        <p class="section-label">👥 Игроков в день (14 дней)</p>${bars(a.days.map((d) => ({ v: d.dau, l: dl(d.d) })), (v) => v, 'linear-gradient(180deg,#5ef0a0,#20b464)')}
+        <p class="section-label">🆕 Новые игроки</p>${bars(a.days.map((d) => ({ v: d.newU, l: dl(d.d) })), (v) => v, 'linear-gradient(180deg,#8fd3ff,#3b82f6)')}
+        <p class="section-label">⭐ Выручка в Stars</p>${bars(a.days.map((d) => ({ v: d.stars, l: dl(d.d) })), (v) => v, 'linear-gradient(180deg,#ffe066,#f5a623)')}
+        <p class="section-label">🚪 Где бросают игру</p>
+        <p class="muted tiny">Уровень, на котором остановились игроки, не заходившие 3+ дня</p>
+        ${stuck.length ? stuck.map((l) => `<div class="an-row"><b>Ур. ${l.n}</b><span class="an-line"><i style="width:${l.stuck / maxStuck * 100}%"></i></span><span>${l.stuck} игр.</span></div>`).join('') : '<p class="muted tiny">Пока никто не ушёл 👍</p>'}
+        <p class="section-label">🔥 Самые сложные уровни</p>
+        ${hard.length ? hard.map((l) => `<div class="an-row"><b>Ур. ${l.n}</b><span class="an-line hard"><i style="width:${l.winRate}%"></i></span><span>${l.winRate}% побед</span></div>`).join('') : '<p class="muted tiny">Нужно минимум 5 попыток на уровень</p>'}
+        <p class="section-label">📋 Все уровни</p>
+        <div class="an-table-wrap"><table class="an-table"><thead><tr><th>Ур.</th><th>Попыток</th><th>Побед</th><th>Выходов</th><th>Ходы</th><th>Время</th><th>⭐</th><th>Застряли</th></tr></thead><tbody>
+        ${a.levels.map((l) => `<tr class="${l.winRate != null && l.winRate < 50 && l.s >= 5 ? 'warn' : ''}"><td>${l.n}</td><td>${l.s}</td><td>${l.winRate == null ? '—' : l.winRate + '%'}</td><td>${l.q}</td><td>${l.avgMoves == null ? '—' : l.avgMoves}</td><td>${l.avgSec == null ? '—' : l.avgSec + 'с'}</td><td>${l.avgStars == null ? '—' : l.avgStars}</td><td>${l.stuck || ''}</td></tr>`).join('') || '<tr><td colspan="8">Нет данных</td></tr>'}
+        </tbody></table></div>
+        <p class="section-label">🔔 Напоминания от бота</p>
+        <button class="setting-row" id="anRem"><span>Автоматические напоминания</span><b class="toggle ${a.remindersEnabled ? 'on' : ''}"></b></button>
+        <div class="a-stats">${Object.keys(NT).filter((k) => k !== 'test').map((k) => stat(NT[k], n7[k] || 0)).join('')}${stat('🔕 Отключили', a.notifyOff)}${stat('🚫 Бот заблокирован', a.notifyBlocked)}</div>
+        <p class="muted tiny">Отправлено за 7 дней. Правила: не больше 2 сообщений в день, между ними от 4 ч, только с 9:00 до 22:00 по времени игрока.</p>
+        <button class="btn btn-ghost" id="anTest">🧪 Прислать тестовое напоминание себе</button>
+        <p class="section-label">📤 Поделиться и 🎟️ пропуск (7 дней)</p>
+        <div class="a-stats">${stat('Открыли окно', sumK(e7, 'share_open'))}${stat('Отправили', sumK(e7, 'share:'))}${stat('Открыли пропуск', e7.pass_open || 0)}${stat('👑 Премиум в сезоне', a.passBuyers)}</div>`;
+      $('anRem').addEventListener('click', async () => {
+        const res = await api('/api/admin/reminders', { method: 'POST', body: abody({ enabled: !a.remindersEnabled }) });
+        if (!res.ok) { aErr(res); return; }
+        showToast(res.data.enabled ? '🔔 Напоминания включены' : '🔕 Напоминания выключены'); renderAdmin();
+      });
+      $('anTest').addEventListener('click', async () => {
+        const res = await api('/api/admin/reminders/test', { method: 'POST', body: abody() });
+        showToast(res.ok && res.data.success ? '✅ Отправлено — проверьте чат с ботом' : '⚠️ ' + ((res.data && res.data.error) || 'Ошибка'));
       });
     } else if (adminTab === 'eco') {
       if (MK()) MK().renderAdminEco(body);
@@ -2196,7 +2532,7 @@
   }
   setInterval(() => { tickLives(); renderHud(); updateHomeTimers(); }, 1000);
   setInterval(() => { updateBadges(); if (!document.hidden) syncWithServer(); }, 45000);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); syncWithServer(); } else { tickLives(); renderHud(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { saveNow(); flushTrack(); syncWithServer(); } else { tickLives(); renderHud(); } });
   window.addEventListener('pagehide', saveNow);
 
   async function boot() {
@@ -2234,7 +2570,9 @@
     Sound, haptic, burstConfetti, rainConfetti, flyTo, avatarHtml, initialOf, saveNow, renderHud, tg, playerId, displayName,
     get state() { return state; }, get isAdmin() { return isAdmin; }, get currentScreen() { return currentScreen; },
     refreshScreen() { if (currentScreen !== 'screenGame') showScreen(currentScreen); },
-    renderShop() { if (currentScreen === 'screenShop') renderShop(); }
+    renderShop() { if (currentScreen === 'screenShop') renderShop(); },
+    shareCard, track,
+    onPaid() { if (!$('modalPass').classList.contains('hidden')) renderPass(); if (currentScreen === 'screenHome') renderHome(); }
   };
   // Отладочный доступ для автотестов (только с ?debug в адресе)
   if (/[?&]debug\b/.test(location.search)) window.__FB = { board, E, get state() { return state; }, showScreen };
