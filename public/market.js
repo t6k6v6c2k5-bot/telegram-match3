@@ -593,6 +593,6 @@
     }));
   }
 
-  window.FBMarket = { render, setTab, refresh, startRun, finishRun, skinEmojis, boardBg, fxColor, myBadge, decorateAvatar, isVip, renderStarsShop, renderAdminEco, showDrop, buyStars, get me() { return me; } };
+  window.FBMarket = { render, setTab, refresh, startRun, finishRun, skinEmojis, boardBg, fxColor, myBadge, decorateAvatar, isVip, renderStarsShop, renderAdminEco, showDrop, buyStars, pv, def, rar, get me() { return me; } };
   updateDots();
 })();

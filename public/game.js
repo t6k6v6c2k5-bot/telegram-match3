@@ -559,6 +559,7 @@
   const loginReady = () => state.login.last !== dayKey();
   function gardenCanBuild() {
     renderPassTeaser();
+    refreshFeedStrip();
     const area = gardenArea(state.garden.area);
     return area.items.some((it, i) => !state.garden.built.includes(i) && state.starsBank >= it[2]);
   }
@@ -1761,25 +1762,214 @@
   /* ============================================================
      14. РЕЙТИНГ
      ============================================================ */
+  /* ============================================================
+     14. РЕЙТИНГИ, ПРОФИЛИ-ВИТРИНЫ, ЛЕНТА СОБЫТИЙ
+     ============================================================ */
+  const LB_TABS = [['level', '🚩 Уровень'], ['stars', '⭐ Звёзды'], ['collection', '💎 Коллекция'], ['likes', '❤️ Лайки'], ['friends', '👥 Друзья']];
+  let lbTab = 'level';
+  const lbVal = (by, v) => (by === 'collection' ? '💠' + fmt(v) : by === 'likes' ? '❤️' + fmt(v) : by === 'stars' ? '⭐' + fmt(v) : '🚩' + fmt(v));
+  // Аватар любого игрока: фото Telegram или буква + рамка (обычная или из коллекции)
+  function avatarOf(p, cls) {
+    const inner = p.me ? avatarHtml() : p.photo ? `<img src="${esc(p.photo)}" alt="" data-i="${initialOf(p.name)}" onerror="this.parentNode.textContent=this.dataset.i">` : initialOf(p.name);
+    let style = '';
+    const d = p.itemFrame && window.FBItems.BY_ID[p.itemFrame];
+    if (d) style = `style="border:3px solid transparent;box-shadow:0 0 12px ${d.data[0]};background:linear-gradient(#2c1660,#2c1660) padding-box, conic-gradient(${d.data.join(',')}) border-box"`;
+    const fr = !d && p.frame && p.frame !== 'none' && FRAMES[p.frame] ? ' frame-' + p.frame : '';
+    return `<div class="avatar${fr} ${cls || ''}" ${style}>${inner}</div>`;
+  }
   async function renderLeaders() {
+    $('leadersTabs').innerHTML = LB_TABS.map(([k, n]) => `<button class="tab ${k === lbTab ? 'active' : ''}" data-lb="${k}">${n}</button>`).join('');
+    qsa('[data-lb]', $('leadersTabs')).forEach((b) => b.addEventListener('click', () => { lbTab = b.dataset.lb; Sound.select(); renderLeaders(); }));
     const body = $('leadersBody');
     body.innerHTML = '<p class="empty">Загрузка...</p>';
-    const res = await api('/api/leaderboard?limit=50');
-    let list = res.ok && res.data && res.data.leaderboard ? res.data.leaderboard : null;
-    if (!list) { body.innerHTML = '<p class="empty">Не удалось загрузить рейтинг 😔<br>Проверьте соединение.</p>'; return; }
-    const me = { id: playerId, name: displayName, bestLevel: state.unlockedLevel, totalStars: totalStars(), me: true };
-    list = list.filter((p) => p.id !== playerId);
-    list.push(me);
-    list.sort((a, b) => (b.bestLevel - a.bestLevel) || (b.totalStars - a.totalStars));
-    const myRank = list.findIndex((p) => p.me) + 1;
-    const top3 = list.slice(0, 3);
-    const podOrder = [top3[1], top3[0], top3[2]];
-    let html = '<div class="lb-podium">' + podOrder.map((p, i) => p ? `<div class="podium p${[2, 1, 3][i]}"><div class="avatar">${p.me ? avatarHtml() : initialOf(p.name)}</div><b>${esc(p.name)}</b><small>ур. ${p.bestLevel}</small><div class="pd-bar">${[2, 1, 3][i]}</div></div>` : '<div class="podium"></div>').join('') + '</div>';
-    html += `<p class="section-label">Вы на ${myRank}-м месте</p>`;
-    html += list.slice(0, 50).map((p, i) => `<div class="lb-row ${p.me ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span><div class="avatar">${p.me ? avatarHtml() : initialOf(p.name)}</div><span class="lb-name">${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : (p.me && MK() && MK().myBadge() ? ' ' + MK().myBadge() : '')}${p.username ? `<small>@${esc(p.username)}</small>` : ''}</span><span class="lb-val">🚩${p.bestLevel}<br><small>⭐${p.totalStars}</small></span></div>`).join('');
-    if (myRank > 50) html += `<div class="lb-row me"><span class="lb-rank">${myRank}</span><div class="avatar">${avatarHtml()}</div><span class="lb-name">${esc(displayName)}</span><span class="lb-val">🚩${state.unlockedLevel}</span></div>`;
+    if (playerId === 'guest') { body.innerHTML = '<p class="empty">Рейтинги доступны внутри Telegram 🙂</p>'; return; }
+    const by = lbTab;
+    const res = await api('/api/social/top?' + new URLSearchParams({ telegram_id: playerId, by }));
+    if (by !== lbTab) return;
+    if (!res.ok || !res.data || !res.data.list) { body.innerHTML = '<p class="empty">Не удалось загрузить рейтинг 😔<br>Проверьте соединение.</p>'; return; }
+    const list = res.data.list.map((p) => (p.id === playerId ? Object.assign(p, { me: true }) : p));
+    const me = res.data.me;
+    const hint = { level: 'Кто дальше всех прошёл', stars: 'Сумма звёзд за все уровни', collection: 'Оценка всех предметов по ценам маркета', likes: 'Кому игроки поставили больше ❤️', friends: 'Вы и друзья по приглашениям' }[by];
+    let html = `<p class="muted tiny" style="text-align:center;margin:0 0 6px">${hint}</p>`;
+    if (!list.length) {
+      html += by === 'friends' ? `<p class="empty">Пока нет друзей в игре 👥<br>Пригласите друга — и соревнуйтесь!</p><button class="btn btn-primary" id="lbInvite">👥 Пригласить друга</button>` : '<p class="empty">Пока пусто — стань первым!</p>';
+      body.innerHTML = html;
+      if ($('lbInvite')) $('lbInvite').addEventListener('click', () => shareText('Давай соревноваться в Fruit Blitz — три в ряд прямо в Telegram 🍓'));
+      return;
+    }
+    const top3 = list.slice(0, 3), podOrder = [top3[1], top3[0], top3[2]];
+    html += '<div class="lb-podium">' + podOrder.map((p, i) => p ? `<button class="podium p${[2, 1, 3][i]}" data-prof="${p.id}">${avatarOf(p)}<b>${esc(p.name)}</b><small>${lbVal(by, p.value)}</small><div class="pd-bar">${[2, 1, 3][i]}</div></button>` : '<div class="podium"></div>').join('') + '</div>';
+    html += `<p class="section-label">${me.rank ? `Вы на ${me.rank}-м месте из ${me.total}` : by === 'collection' ? 'Соберите предметы, чтобы попасть в рейтинг' : by === 'likes' ? 'Пока без лайков — прокачайте витрину!' : 'Пройдите уровень, чтобы попасть в рейтинг'}</p>`;
+    html += list.map((p, i) => `<button class="lb-row ${p.me ? 'me' : ''}" data-prof="${p.id}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${avatarOf(p)}<span class="lb-name">${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}<small>${p.titleIcon ? esc(p.titleIcon + ' ' + p.titleName) : p.username ? '@' + esc(p.username) : ''}</small></span><span class="lb-val">${lbVal(by, p.value)}<br><small>${esc(p.sub || '')}</small></span></button>`).join('');
+    if (me.rank > 50) html += `<button class="lb-row me" data-prof="${playerId}"><span class="lb-rank">${me.rank}</span>${avatarOf({ me: true, frame: state.equippedFrame })}<span class="lb-name">${esc(displayName)}</span><span class="lb-val">${lbVal(by, me.value)}</span></button>`;
     body.innerHTML = html;
+    qsa('[data-prof]', body).forEach((b) => b.addEventListener('click', () => openProfile(b.dataset.prof)));
   }
+
+  function agoText(t) {
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 60) return 'только что';
+    if (s < 3600) return Math.floor(s / 60) + ' мин назад';
+    if (s < 86400) return Math.floor(s / 3600) + ' ч назад';
+    return Math.floor(s / 86400) + ' д назад';
+  }
+  // Текст события без привязки к роду: «Аня: выпал ✨ Галактика #17»
+  function feedHtml(e, withName) {
+    const I = window.FBItems, d = e.itemId && I.BY_ID[e.itemId];
+    const item = d ? `<b style="color:${I.rarityOf(d.r).color}">${e.shiny ? '✨ ' : ''}${esc(d.name)} #${e.serial}</b>` : '';
+    const who = withName === false ? '' : `<b>${esc(e.name)}</b>${e.badge ? ' ' + esc(e.badge) : ''}: `;
+    const txt = {
+      drop: `выпал ${item}`, tradeup: `контракт → ${item}`, excl: `эксклюзив ★ ${item}`,
+      sale: `покупка ${item} за ${fmt(e.price || 0)} 💠`, level: `пройдено ${e.n} уровней 🎉`, likes: `профиль набрал ${e.n} ❤️`
+    }[e.kind] || '';
+    return who + txt;
+  }
+  const FEED_ICO = { drop: '🎁', tradeup: '🧪', excl: '★', sale: '💰', level: '🏆', likes: '❤️' };
+  let feedCache = [], feedIdx = 0, feedLoadedAt = 0, feedRot = null;
+  async function loadFeed(force) {
+    if (!force && Date.now() - feedLoadedAt < 60000) return feedCache;
+    const r = await api('/api/social/feed');
+    if (r.ok && r.data && r.data.feed) { feedCache = r.data.feed; feedLoadedAt = Date.now(); }
+    return feedCache;
+  }
+  function showFeedStrip() {
+    const strip = $('feedStrip');
+    if (!feedCache.length) { strip.classList.add('hidden'); return; }
+    strip.classList.remove('hidden');
+    const e = feedCache[feedIdx % Math.min(6, feedCache.length)];
+    const t = $('feedText');
+    t.classList.remove('feed-in'); void t.offsetWidth; t.classList.add('feed-in');
+    t.innerHTML = `${FEED_ICO[e.kind] || '•'} ${feedHtml(e)} <small>· ${agoText(e.at)}</small>`;
+  }
+  async function refreshFeedStrip() {
+    await loadFeed();
+    showFeedStrip();
+    clearInterval(feedRot);
+    feedRot = setInterval(() => { if (currentScreen !== 'screenHome') return; feedIdx++; showFeedStrip(); if (Date.now() - feedLoadedAt > 60000) loadFeed(); }, 4500);
+  }
+  async function openFeed() {
+    openModal('modalFeed');
+    const list = $('feedList');
+    list.innerHTML = '<p class="empty">Загрузка...</p>';
+    const f = await loadFeed(true);
+    list.innerHTML = f.length ? f.map((e) => `<button class="feed-row" data-prof="${e.uid}">${avatarOf({ name: e.name, photo: e.photo })}<span class="fr-text"><span>${feedHtml(e)}</span><small>${agoText(e.at)}</small></span><span class="fr-ico">${FEED_ICO[e.kind] || ''}</span></button>`).join('')
+      : '<p class="empty">Пока тихо… Выбей что-нибудь редкое первым! 🍀</p>';
+    qsa('[data-prof]', list).forEach((b) => b.addEventListener('click', () => { closeModal('modalFeed'); openProfile(b.dataset.prof); }));
+    track('feed_open');
+  }
+  $('feedStrip').addEventListener('click', () => { Sound.click(); openFeed(); });
+
+  // Публичные данные профиля — уходят на сервер при синхронизации
+  function pubPayload() {
+    const t = TITLES[state.equippedTitle] || TITLES.novice;
+    return { frame: state.equippedFrame, title: state.equippedTitle, titleName: t.name, titleIcon: t.icon, garden: state.garden.areasDone || 0, pass: passLevel(),
+      wins: state.stats.wins, perfects: state.stats.perfects, combo: state.stats.bestCombo, ach: Object.values(state.achClaimed).reduce((a, b) => a + (Number(b) || 0), 0),
+      photo: tgUser && tgUser.photo_url ? tgUser.photo_url : null };
+  }
+
+  let profileData = null, profileSel = null;
+  async function openProfile(id) {
+    if (playerId === 'guest') { showToast('Профили доступны внутри Telegram'); return; }
+    Sound.click();
+    openModal('modalProfile');
+    $('profileBody').innerHTML = '<p class="empty">Загрузка...</p>';
+    if (id === playerId) { saveNow(); await syncWithServer(); }
+    const r = await api('/api/social/profile/' + encodeURIComponent(id) + '?' + userQS());
+    if (!r.ok || !r.data || !r.data.profile) { $('profileBody').innerHTML = `<p class="empty">${esc((r.data && r.data.error) || 'Не удалось загрузить профиль')}</p>`; return; }
+    profileData = r.data.profile; profileSel = null;
+    renderProfile();
+    track('profile_open', { k: id === playerId ? 'own' : 'other' });
+  }
+  function renderProfile() {
+    const p = profileData, mine = p.id === playerId, pub = p.pub || {};
+    const MKx = MK(), I = window.FBItems;
+    const stat = (ico, label, v) => `<div class="pf-stat"><span>${ico}</span><b>${v}</b><small>${label}</small></div>`;
+    const slots = [];
+    for (let i = 0; i < 5; i++) {
+      const it = p.showcase[i];
+      if (it && MKx) {
+        const d = I.BY_ID[it.itemId], rr = I.rarityOf(d.r);
+        slots.push(`<button class="sc-slot${profileSel === i ? ' sel' : ''}" data-sc="${i}" style="--rc:${rr.color}">${MKx.pv(d, 46)}${it.shiny ? '<i class="sc-shiny">✨</i>' : ''}<small>#${it.serial}</small></button>`);
+      } else slots.push(`<button class="sc-slot empty" ${mine ? 'data-sc-edit' : 'disabled'}>${mine ? '+' : ''}</button>`);
+    }
+    let detail = '';
+    if (profileSel != null && p.showcase[profileSel]) {
+      const it = p.showcase[profileSel], d = I.BY_ID[it.itemId], rr = I.rarityOf(d.r);
+      detail = `<div class="sc-detail" style="--rc:${rr.color}"><b>${it.shiny ? '✨ Сияющий ' : ''}${esc(d.name)} <span>#${it.serial}</span></b>
+        <small>${esc(rr.name)} · ${esc(I.TYPES[d.type].name)} · ${esc(I.qualityOf(it.q).name)}${it.shiny && it.counter ? ' · 🍓' + fmt(it.counter) : ''}</small>
+        <small>Оценка: <b>${fmt(it.value)} 💠</b></small></div>`;
+    }
+    const since = new Date(p.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    const online = Date.now() - p.lastSeen < 10 * 60000;
+    const ranks = [['🚩', p.ranks.level], ['💎', p.ranks.collection], ['❤️', p.ranks.likes]].filter((x) => x[1]).map(([i, r]) => `<span class="chip">${i} #${r}</span>`).join('');
+    $('profileBody').innerHTML = `
+      <div class="pf-head">${avatarOf(Object.assign({}, p, { me: mine, frame: mine ? state.equippedFrame : p.frame }), 'pf-avatar')}
+        <div class="pf-name"><b>${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}</b>
+          <span class="profile-title">${esc((pub.titleIcon || '🌱') + ' ' + (pub.titleName || 'Новичок'))}</span>
+          <small>${online ? '<i class="on-dot"></i> в игре' : 'был(а) ' + agoText(p.lastSeen)}${p.username ? ' · @' + esc(p.username) : ''}</small>
+          <div class="pf-chips">${p.vip ? '<span class="chip vip">👑 VIP</span>' : ''}${p.passPremium ? '<span class="chip">🎟️ Премиум</span>' : ''}${ranks}</div></div></div>
+      <div class="pf-actions">${mine ? `<button class="btn btn-ghost" id="pfEdit">✏️ Витрина</button><button class="btn btn-primary" id="pfShare">📤 Поделиться</button>`
+        : `<button class="btn ${p.liked ? 'btn-primary' : 'btn-ghost'} pf-like" id="pfLike">${p.liked ? '❤️' : '🤍'} ${fmt(p.likes)}</button><button class="btn btn-ghost" id="pfTrade">🔁 Обмен</button>`}</div>
+      ${mine ? `<p class="muted tiny" style="text-align:center">❤️ ${fmt(p.likes)} — столько игроков лайкнули ваш профиль</p>` : ''}
+      <p class="section-label">🏆 Витрина${p.autoShowcase && p.showcase.length ? ' <small class="muted">(лучшие предметы)</small>' : ''}</p>
+      <div class="sc-row">${slots.join('')}</div>${detail}
+      ${!p.showcase.length ? `<p class="muted tiny" style="text-align:center">${mine ? 'Проходите уровни — за победы выпадают предметы!' : 'Коллекция пока пуста'}</p>` : ''}
+      <div class="pf-col"><span>💎 Коллекция</span><b>${fmt(p.collection.count)} шт. · ${fmt(p.collection.value)} 💠</b></div>
+      <div class="pf-stats">${stat('🚩', 'уровень', Math.max(0, p.bestLevel - 1))}${stat('⭐', 'звёзд', fmt(p.totalStars))}${stat('🏆', 'побед', fmt(pub.wins || 0))}
+        ${stat('💯', 'на 3 ⭐', fmt(pub.perfects || 0))}${stat('🌳', 'областей сада', pub.garden || 0)}${stat('🎟️', 'пропуск', pub.pass || 0)}</div>
+      ${p.recent && p.recent.length ? `<p class="section-label">✨ Последние успехи</p>${p.recent.map((e) => `<div class="pf-event">${FEED_ICO[e.kind] || '•'} ${feedHtml(e, false)} <small>· ${agoText(e.at)}</small></div>`).join('')}` : ''}
+      <p class="muted tiny" style="text-align:center;margin-top:10px">В игре с ${since}</p>`;
+    qsa('[data-sc]', $('profileBody')).forEach((b) => b.addEventListener('click', () => { const i = +b.dataset.sc; profileSel = profileSel === i ? null : i; Sound.select(); renderProfile(); }));
+    qsa('[data-sc-edit]', $('profileBody')).forEach((b) => b.addEventListener('click', openShowcaseEditor));
+    if ($('pfEdit')) $('pfEdit').addEventListener('click', openShowcaseEditor);
+    if ($('pfShare')) $('pfShare').addEventListener('click', () => { closeModal('modalProfile'); shareProfile(); });
+    if ($('pfLike')) $('pfLike').addEventListener('click', async () => {
+      const b = $('pfLike'); b.disabled = true;
+      const r = await api('/api/social/like', { method: 'POST', body: { telegram_id: playerId, id: p.id } });
+      b.disabled = false;
+      if (!r.ok) { showToast('⚠️ ' + ((r.data && r.data.error) || 'Ошибка')); return; }
+      p.liked = r.data.liked; p.likes = r.data.likes;
+      if (p.liked) { Sound.coin(); haptic('success'); const rc = b.getBoundingClientRect(); burstConfetti(rc.left + rc.width / 2, rc.top, 16); }
+      renderProfile();
+    });
+    if ($('pfTrade')) $('pfTrade').addEventListener('click', () => {
+      closeModal('modalProfile');
+      if (MK() && MK().setTab) MK().setTab('trades');
+      showScreen('screenMarket');
+      showToast('Введите в поле обмена: ' + (p.username ? '@' + p.username : p.id));
+    });
+  }
+  let scChosen = [];
+  function openShowcaseEditor() {
+    const MKx = MK(), I = window.FBItems;
+    const inv = (MKx && MKx.me && MKx.me.inventory) || [];
+    if (!inv.length) { showToast('Коллекция пока пуста — проходите уровни, за победы выпадают предметы!'); return; }
+    scChosen = profileData && !profileData.autoShowcase ? profileData.showcase.map((x) => x.uid) : [];
+    const sorted = inv.slice().sort((a, b) => (I.BY_ID[b.itemId].r - I.BY_ID[a.itemId].r) || ((b.shiny ? 1 : 0) - (a.shiny ? 1 : 0)));
+    const draw = () => {
+      $('scPick').innerHTML = sorted.map((it) => {
+        const d = I.BY_ID[it.itemId], k = scChosen.indexOf(it.uid);
+        return `<button class="sc-slot${k >= 0 ? ' sel' : ''}" data-pick="${it.uid}" style="--rc:${I.rarityOf(d.r).color}">${MKx.pv(d, 42)}${it.shiny ? '<i class="sc-shiny">✨</i>' : ''}${k >= 0 ? `<i class="sc-num">${k + 1}</i>` : ''}<small>${esc(d.name)}</small></button>`;
+      }).join('');
+      qsa('[data-pick]', $('scPick')).forEach((b) => b.addEventListener('click', () => {
+        const u = b.dataset.pick, k = scChosen.indexOf(u);
+        if (k >= 0) scChosen.splice(k, 1); else if (scChosen.length < 5) scChosen.push(u); else { showToast('Не больше 5 предметов'); return; }
+        Sound.select(); draw();
+      }));
+    };
+    draw();
+    openModal('modalShowcase');
+  }
+  async function saveShowcase(uids) {
+    const r = await api('/api/social/showcase', { method: 'POST', body: { telegram_id: playerId, uids } });
+    if (!r.ok) { showToast('⚠️ ' + ((r.data && r.data.error) || 'Ошибка')); return; }
+    closeModal('modalShowcase');
+    showToast('✅ Витрина обновлена');
+    openProfile(playerId);
+  }
+  $('scSave').addEventListener('click', () => saveShowcase(scChosen));
+  $('scAuto').addEventListener('click', () => saveShowcase([]));
+  $('profileCard').addEventListener('click', () => openProfile(playerId));
 
   /* ============================================================
      15. НАСТРОЙКИ, ЖИЗНИ, ПОДЕЛИТЬСЯ
@@ -2177,7 +2367,7 @@
     return { telegram_id: playerId, name: tgUser ? tgUser.first_name : '', username: tgUser ? tgUser.username : '',
       level: state.unlockedLevel, totalStars: totalStars(), starsBank: state.starsBank, coins: state.coins, gems: state.gems,
       lives: state.lives, boosters: state.boosters, score: state.stats.bestScore, adminRev: state.adminRev,
-      tz: -new Date().getTimezoneOffset(), timers: reminderTimers(), passUnclaimed: passClaimable() };
+      tz: -new Date().getTimezoneOffset(), timers: reminderTimers(), passUnclaimed: passClaimable(), pub: pubPayload() };
   }
   // Когда что-то снова станет доступно — сервер напомнит через бота, если игрок не зашёл сам
   function reminderTimers() {

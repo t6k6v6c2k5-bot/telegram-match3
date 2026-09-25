@@ -38,6 +38,7 @@
             <span class="chip">⭐ <b id="homeStars">0</b></span>
           </div>
         </div>
+        <button class="feed-strip hidden" id="feedStrip"><span class="live-dot"></span><span class="feed-text" id="feedText"></span><span class="teaser-cta">›</span></button>
 
         <div class="home-logo" aria-label="Fruit Blitz">
           <span class="logo-fruit f1">🍓</span>
@@ -157,6 +158,7 @@
 
     <section id="screenLeaders" class="screen">
       <div class="screen-head"><h2>🏆 Рейтинг</h2></div>
+      <div class="tabs" id="leadersTabs"></div>
       <div class="screen-scroll" id="leadersBody"></div>
     </section>
   </main>
@@ -291,6 +293,32 @@
     <div class="card pass-card">
       <button class="modal-x" data-close="modalPass">✕</button>
       <div id="passBody"></div>
+    </div>
+  </div>
+
+  <div id="modalProfile" class="overlay hidden">
+    <div class="card profile-modal">
+      <button class="modal-x" data-close="modalProfile">✕</button>
+      <div id="profileBody"></div>
+    </div>
+  </div>
+
+  <div id="modalShowcase" class="overlay hidden">
+    <div class="card profile-modal">
+      <button class="modal-x" data-close="modalShowcase">✕</button>
+      <h2>✏️ Витрина</h2>
+      <p class="muted tiny">Выберите до 5 предметов, которыми хотите похвастаться. Другие игроки увидят их в вашем профиле.</p>
+      <div class="sc-pick" id="scPick"></div>
+      <div class="btn-row"><button class="btn btn-ghost" id="scAuto">Авто (лучшие)</button><button class="btn btn-green" id="scSave">Сохранить</button></div>
+    </div>
+  </div>
+
+  <div id="modalFeed" class="overlay hidden">
+    <div class="card profile-modal">
+      <button class="modal-x" data-close="modalFeed">✕</button>
+      <h2>🔴 Прямо сейчас</h2>
+      <p class="muted tiny">Редкие находки, крупные сделки и рекорды игроков</p>
+      <div id="feedList" class="feed-list"></div>
     </div>
   </div>
 
