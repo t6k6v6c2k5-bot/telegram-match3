@@ -1,8 +1,6 @@
 /* ==========================================================
-   FRUIT BLITZ — Backend сервер + Telegram-бот + Админ-панель
-   Express (статика + API) + node-telegram-bot-api (polling)
+   FRUIT BLITZ — сервер: статика + API + Telegram-бот + админка
    ========================================================== */
-
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -17,558 +15,434 @@ const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const WEBAPP_URL = process.env.WEBAPP_URL || 'https://telegram-match3-production.up.railway.app';
 const BOT_USERNAME = process.env.BOT_USERNAME || 'game_crashfr_bot';
-const REF_BONUS_COINS = 100;
-
-// Несколько ID через запятую: "123456789,987654321"
-const ADMIN_IDS = String(process.env.ADMIN_ID || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-function isAdminId(id) {
-  return ADMIN_IDS.includes(String(id));
-}
+const REF_BONUS_COINS = 300;
+const ADMIN_IDS = String(process.env.ADMIN_ID || '').split(',').map((s) => s.trim()).filter(Boolean);
+// Без BOT_TOKEN проверить подпись initData невозможно — тогда (только для локальной
+// разработки) доверяем telegram_id из запроса. На проде с BOT_TOKEN всё проверяется подписью.
+const DEV_TRUST_IDS = !BOT_TOKEN || process.env.ALLOW_INSECURE_ADMIN === '1';
+const isAdminId = (id) => ADMIN_IDS.includes(String(id));
 
 /* ============================================================
-   1. ХРАНИЛИЩЕ ИГРОКОВ + ГЛОБАЛЬНЫХ НАСТРОЕК (JSON-файлы)
+   1. ХРАНИЛИЩЕ (data/players.json)
+   ВАЖНО: на Railway подключите Volume и задайте DATA_DIR=/data —
+   иначе файловая система контейнера сбрасывается при каждом деплое.
    ============================================================ */
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'players.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const MAX_BACKUPS = 30;
 
-function ensureDataDir() {
+function ensureDirs() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
-
 function loadJSON(file, fallback) {
-  ensureDataDir();
+  ensureDirs();
   try {
     if (!fs.existsSync(file)) return fallback;
     const raw = fs.readFileSync(file, 'utf8');
     return raw ? JSON.parse(raw) : fallback;
   } catch (e) {
-    console.error(`Ошибка чтения ${file}:`, e.message);
+    console.error('Ошибка чтения', file, e.message);
     return fallback;
   }
 }
-
-function writeJSONSync(file, data) {
-  ensureDataDir();
-  try { fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8'); } catch (e) { console.error(`Ошибка записи ${file}:`, e.message); }
+let lastBackupAt = 0;
+function backupFile(file) {
+  // Не чаще раза в 10 минут — чтобы не плодить сотни копий при активной игре
+  if (Date.now() - lastBackupAt < 10 * 60 * 1000 || !fs.existsSync(file)) return;
+  lastBackupAt = Date.now();
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    fs.copyFileSync(file, path.join(BACKUP_DIR, `players_${stamp}.json`));
+    const list = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith('players_')).sort();
+    while (list.length > MAX_BACKUPS) fs.unlinkSync(path.join(BACKUP_DIR, list.shift()));
+  } catch (e) { console.warn('Бэкап не создан:', e.message); }
+}
+function writeJSON(file, data) {
+  ensureDirs();
+  try {
+    if (file === DB_FILE && Object.keys(data).length === 0) {
+      const onDisk = loadJSON(DB_FILE, null);
+      if (onDisk && Object.keys(onDisk).length > 0) {
+        console.error('⛔ Защита: отменена перезапись непустой базы пустой.');
+        return;
+      }
+    }
+    if (file === DB_FILE) backupFile(file);
+    const tmp = file + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 1), 'utf8');
+    fs.renameSync(tmp, file); // атомарная замена — файл не повредится при сбое посреди записи
+  } catch (e) { console.error('Ошибка записи', file, e.message); }
 }
 
-/**
- * НОРМАЛИЗАЦИЯ ИГРОКА — главный фикс бага "0 / null / -" в админке.
- * Гарантирует, что у КАЖДОГО объекта игрока, который уходит наружу (в API-ответ),
- * всегда есть все поля с понятными дефолтами — даже если запись была создана
- * старой версией сервера и часть полей в players.json попросту отсутствует.
- */
+const BOOSTER_KEYS = ['hammer', 'shuffle', 'rocket', 'bomb', 'rainbow'];
+const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+
+/** Нормализация: чинит записи старых версий, ничего не удаляя */
 function normalizePlayer(p) {
-  p.coins = (typeof p.coins === 'number' && !isNaN(p.coins)) ? p.coins : 0;
-  p.gems = (typeof p.gems === 'number' && !isNaN(p.gems)) ? p.gems : 0;
-  p.lives = (typeof p.lives === 'number' && !isNaN(p.lives)) ? p.lives : 5;
-  p.bestLevel = (typeof p.bestLevel === 'number' && p.bestLevel > 0) ? p.bestLevel : 1;
-  p.bestScore = (typeof p.bestScore === 'number' && !isNaN(p.bestScore)) ? p.bestScore : 0;
-  // миграция старого поля `banned` -> `isBanned`
-  p.isBanned = (typeof p.isBanned === 'boolean') ? p.isBanned : !!p.banned;
-  p.bannedAt = p.bannedAt || null;
-  p.refCount = (typeof p.refCount === 'number') ? p.refCount : 0;
-  p.refBy = p.refBy || null;
+  p.id = String(p.id);
   p.name = p.name || 'Игрок';
   p.username = p.username || null;
+  p.coins = Math.max(0, Math.floor(num(p.coins, 0)));
+  p.gems = Math.max(0, Math.floor(num(p.gems, 0)));
+  p.lives = Math.max(0, Math.floor(num(p.lives, 10)));
+  p.bestLevel = Math.max(1, Math.floor(num(p.bestLevel, 1)));
+  p.bestScore = Math.max(0, num(p.bestScore, 0));
+  p.totalStars = Math.max(0, Math.floor(num(p.totalStars, 0)));
+  p.starsBank = Math.max(0, Math.floor(num(p.starsBank, 0)));
+  const b = (p.boosters && typeof p.boosters === 'object') ? p.boosters : {};
+  p.boosters = {};
+  BOOSTER_KEYS.forEach((k) => { p.boosters[k] = Math.max(0, Math.floor(num(b[k], 0))); });
+  if (typeof b.rocketBoost === 'number') p.boosters.rocket += b.rocketBoost;
+  p.isBanned = typeof p.isBanned === 'boolean' ? p.isBanned : !!p.banned;
+  p.bannedAt = p.bannedAt || null;
+  p.adminRev = Math.max(0, Math.floor(num(p.adminRev, 0)));
+  p.resetToken = p.resetToken || null;
+  p.refBy = p.refBy || null;
+  p.refCount = Math.max(0, num(p.refCount, 0));
   p.createdAt = p.createdAt || Date.now();
   p.updatedAt = p.updatedAt || Date.now();
-  delete p.banned;
-  delete p.livesLockedByAdmin;
+  p.lastSeen = p.lastSeen || p.updatedAt;
+  delete p.banned; delete p.livesLockedByAdmin;
   return p;
 }
 
-/** players[telegram_id] = нормализованный объект игрока (см. normalizePlayer) */
 const players = loadJSON(DB_FILE, {});
-// Нормализуем всю базу один раз при старте — чинит записи, созданные старыми версиями сервера
 Object.keys(players).forEach((id) => normalizePlayer(players[id]));
-
-const settings = Object.assign({ maintenanceMode: false, doubleRewards: false }, loadJSON(SETTINGS_FILE, {}));
+const settings = Object.assign({ maintenanceMode: false, doubleRewards: false, globalGift: null }, loadJSON(SETTINGS_FILE, {}));
 
 let saveTimer = null;
-function saveDB() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => writeJSONSync(DB_FILE, players), 150);
-}
-function saveSettings() { writeJSONSync(SETTINGS_FILE, settings); }
+function saveDB() { clearTimeout(saveTimer); saveTimer = setTimeout(() => writeJSON(DB_FILE, players), 300); }
+function saveSettings() { writeJSON(SETTINGS_FILE, settings); }
+process.on('SIGTERM', () => { writeJSON(DB_FILE, players); process.exit(0); });
 
 function getOrCreatePlayer(id, extra) {
   const key = String(id);
-  if (!players[key]) {
-    players[key] = normalizePlayer({
-      id: key,
-      name: (extra && extra.name) || 'Игрок',
-      username: (extra && extra.username) || null
-    });
-  } else if (extra) {
-    if (extra.name) players[key].name = extra.name;
-    if (extra.username) players[key].username = extra.username;
-    normalizePlayer(players[key]);
-  } else {
-    normalizePlayer(players[key]);
-  }
-  return players[key];
+  if (!players[key]) players[key] = normalizePlayer({ id: key, lives: 10, coins: 500, gems: 20 });
+  const p = players[key];
+  if (extra && extra.name) p.name = String(extra.name).slice(0, 64);
+  if (extra && extra.username) p.username = String(extra.username).slice(0, 64);
+  return normalizePlayer(p);
+}
+function publicSettings() {
+  return { maintenanceMode: settings.maintenanceMode, doubleRewards: settings.doubleRewards, globalGift: settings.globalGift };
 }
 
 /* ============================================================
-   2. РЕФЕРАЛЬНЫЙ БОНУС
+   2. ПРОВЕРКА ПОДПИСИ TELEGRAM initData
    ============================================================ */
-function creditReferral(newUserId, referrerId, extraNew) {
-  const newKey = String(newUserId);
-  const refKey = String(referrerId);
-  if (!refKey || newKey === refKey) return { credited: false, reason: 'self-ref' };
-
-  const newPlayer = getOrCreatePlayer(newKey, extraNew);
-  if (newPlayer.refBy) return { credited: false, reason: 'already-credited' };
-
-  const referrer = getOrCreatePlayer(refKey);
-  newPlayer.refBy = refKey;
-  referrer.refCount += 1;
-  referrer.coins += REF_BONUS_COINS;
-  referrer.updatedAt = Date.now();
-  newPlayer.updatedAt = Date.now();
-  saveDB();
-
-  return { credited: true, bonus: REF_BONUS_COINS, referrer };
-}
-
-function getTopPlayers(limit) {
-  return Object.values(players)
-    .filter((p) => (p.bestScore || 0) > 0)
-    .sort((a, b) => (b.bestScore || 0) - (a.bestScore || 0))
-    .slice(0, limit || 10)
-    .map((p) => ({ id: p.id, name: p.name, username: p.username, bestScore: p.bestScore, bestLevel: p.bestLevel }));
-}
-
-/* ============================================================
-   3. ПРОВЕРКА TELEGRAM initData (HMAC, по официальному алгоритму)
-   ============================================================ */
-function verifyTelegramInitData(initData) {
-  if (!initData || !BOT_TOKEN) return { valid: false };
+function verifyInitData(initData) {
+  if (!initData || !BOT_TOKEN) return null;
   try {
     const params = new URLSearchParams(initData);
     const hash = params.get('hash');
-    if (!hash) return { valid: false };
+    if (!hash) return null;
     params.delete('hash');
     const pairs = [];
-    params.forEach((value, key) => pairs.push(`${key}=${value}`));
+    params.forEach((v, k) => pairs.push(`${k}=${v}`));
     pairs.sort();
-    const dataCheckString = pairs.join('\n');
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-    const computedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-    if (computedHash !== hash) return { valid: false };
-    const userRaw = params.get('user');
-    const user = userRaw ? JSON.parse(userRaw) : null;
-    return { valid: true, user };
-  } catch (e) {
-    return { valid: false };
-  }
+    const secret = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    const calc = crypto.createHmac('sha256', secret).update(pairs.join('\n')).digest('hex');
+    if (calc !== hash) return null;
+    const user = params.get('user') ? JSON.parse(params.get('user')) : null;
+    return user && user.id ? user : null;
+  } catch (e) { return null; }
 }
-
-/* ============================================================
-   4. MIDDLEWARE: ДОСТУП ТОЛЬКО ДЛЯ АДМИНА (process.env.ADMIN_ID)
-   ============================================================ */
+/** Определяет, КТО делает запрос: по подписи Telegram (прод) или по telegram_id (локально) */
+function resolveUser(req) {
+  const initData = req.get('X-Telegram-Init-Data') || (req.body && req.body.init_data) || req.query.init_data;
+  const verified = verifyInitData(initData);
+  if (verified) return { id: String(verified.id), name: verified.first_name, username: verified.username };
+  if (DEV_TRUST_IDS) {
+    const id = (req.body && req.body.telegram_id) || req.query.telegram_id;
+    if (id && id !== 'guest') return { id: String(id), name: (req.body && req.body.name) || req.query.name, username: (req.body && req.body.username) || req.query.username };
+  }
+  return null;
+}
+function requireUser(req, res, next) {
+  const u = resolveUser(req);
+  if (!u) return res.status(401).json({ success: false, error: 'Не удалось подтвердить пользователя Telegram' });
+  req.user = u; next();
+}
 function requireAdmin(req, res, next) {
-  const initData = (req.body && req.body.init_data) || req.query.init_data;
-  const rawTelegramId = (req.body && req.body.telegram_id) || req.query.telegram_id;
-
-  let verifiedId = null;
-  if (initData) {
-    const result = verifyTelegramInitData(initData);
-    if (result.valid && result.user && result.user.id) verifiedId = result.user.id;
-  }
-  if (!verifiedId && rawTelegramId) verifiedId = rawTelegramId;
-
-  if (!verifiedId || !isAdminId(verifiedId)) {
-    return res.status(403).json({ success: false, error: 'Доступ запрещён: требуются права администратора' });
-  }
-  req.adminId = String(verifiedId);
-  next();
+  const u = resolveUser(req);
+  if (!u || !isAdminId(u.id)) return res.status(403).json({ success: false, error: 'Доступ запрещён' });
+  req.user = u; next();
 }
 
 /* ============================================================
-   5. АНАЛИТИКА
+   3. ЛОГИКА: рефералы, рейтинг, статистика
    ============================================================ */
+function creditReferral(newId, refId, extra) {
+  const nk = String(newId), rk = String(refId);
+  if (!rk || nk === rk || !/^\d+$/.test(rk)) return { credited: false };
+  const np = getOrCreatePlayer(nk, extra);
+  if (np.refBy) return { credited: false };
+  const rp = getOrCreatePlayer(rk);
+  np.refBy = rk;
+  rp.refCount += 1;
+  rp.coins += REF_BONUS_COINS;
+  rp.adminRev += 1; // клиент реферера подтянет бонус при следующей синхронизации
+  rp.updatedAt = np.updatedAt = Date.now();
+  saveDB();
+  return { credited: true, bonus: REF_BONUS_COINS };
+}
+function leaderboard(limit) {
+  return Object.values(players)
+    .filter((p) => !p.isBanned && p.bestLevel > 1)
+    .sort((a, b) => (b.bestLevel - a.bestLevel) || (b.totalStars - a.totalStars))
+    .slice(0, limit)
+    .map((p) => ({ id: p.id, name: p.name, username: p.username, bestLevel: p.bestLevel, totalStars: p.totalStars }));
+}
 function computeStats() {
   const all = Object.values(players);
-  const totalUsers = all.length;
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const dau = all.filter((p) => (p.updatedAt || 0) >= todayStart.getTime()).length;
-  const totalCoins = all.reduce((sum, p) => sum + (p.coins || 0), 0);
-  const totalGems = all.reduce((sum, p) => sum + (p.gems || 0), 0);
-  const avgLevel = totalUsers ? (all.reduce((sum, p) => sum + (p.bestLevel || 1), 0) / totalUsers) : 0;
-  const topRich = all.slice().sort((a, b) => (b.coins || 0) - (a.coins || 0)).slice(0, 5)
-    .map((p) => ({ id: p.id, name: p.name, username: p.username, coins: p.coins, gems: p.gems }));
-  const topLevel = all.slice().sort((a, b) => (b.bestLevel || 0) - (a.bestLevel || 0)).slice(0, 5)
-    .map((p) => ({ id: p.id, name: p.name, username: p.username, bestLevel: p.bestLevel, bestScore: p.bestScore }));
-  return { totalUsers, dau, totalCoins, totalGems, avgLevel: Math.round(avgLevel * 10) / 10, topRich, topLevel };
-}
-
-/* ============================================================
-   6. РАССЫЛКА (Broadcast) — состояние прогресса для polling
-   ============================================================ */
-const broadcastState = { running: false, total: 0, sent: 0, failed: 0, startedAt: null, finishedAt: null };
-
-async function broadcastToAll(text, options) {
-  const ids = Object.keys(players);
-  broadcastState.running = true;
-  broadcastState.total = ids.length;
-  broadcastState.sent = 0;
-  broadcastState.failed = 0;
-  broadcastState.startedAt = Date.now();
-  broadcastState.finishedAt = null;
-
-  const replyMarkup = options && options.buttonUrl ? {
-    inline_keyboard: [[{ text: options.buttonText || '🎮 Играть', url: options.buttonUrl }]]
-  } : undefined;
-
-  for (const id of ids) {
-    try {
-      await bot.sendMessage(id, text, { parse_mode: (options && options.parseMode) || 'HTML', reply_markup: replyMarkup });
-      broadcastState.sent++;
-    } catch (e) {
-      broadcastState.failed++;
-    }
-    await new Promise((r) => setTimeout(r, 40)); // защита от лимитов Telegram (~30 сообщ/сек)
-  }
-
-  broadcastState.running = false;
-  broadcastState.finishedAt = Date.now();
-}
-
-/* ============================================================
-   7. TELEGRAM-БОТ
-   ============================================================ */
-let bot = null;
-const adminSessions = {}; // chatId -> 'awaiting_broadcast'
-
-function adminStatsText() {
-  const s = computeStats();
-  let text = `📊 <b>Статистика Fruit Blitz</b>\n\n`;
-  text += `👥 Всего игроков: <b>${s.totalUsers}</b>\n`;
-  text += `🟢 Активны сегодня (DAU): <b>${s.dau}</b>\n`;
-  text += `🪙 Всего монет в игре: <b>${s.totalCoins}</b>\n`;
-  text += `💎 Всего кристаллов: <b>${s.totalGems}</b>\n`;
-  text += `📈 Средний уровень: <b>${s.avgLevel}</b>\n\n`;
-  text += `🏆 <b>Топ-5 богатейших:</b>\n`;
-  s.topRich.forEach((p, i) => { text += `${i + 1}. ${p.name}${p.username ? ' (@' + p.username + ')' : ''} — ${p.coins}🪙 / ${p.gems}💎\n`; });
-  text += `\n🚀 <b>Топ-5 по уровню:</b>\n`;
-  s.topLevel.forEach((p, i) => { text += `${i + 1}. ${p.name}${p.username ? ' (@' + p.username + ')' : ''} — ур. ${p.bestLevel}\n`; });
-  return text;
-}
-
-function adminKeyboard() {
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const weekAgo = Date.now() - 7 * 864e5;
+  const sum = (f) => all.reduce((s, p) => s + (f(p) || 0), 0);
+  const top = (f) => all.slice().sort((a, b) => f(b) - f(a)).slice(0, 5).map((p) => ({ id: p.id, name: p.name, username: p.username, coins: p.coins, gems: p.gems, bestLevel: p.bestLevel, totalStars: p.totalStars }));
   return {
-    inline_keyboard: [
-      [{ text: '🔄 Обновить статистику', callback_data: 'admin_refresh' }],
-      [{ text: '📢 Рассылка', callback_data: 'admin_broadcast' }],
-      [{ text: `🛠 Тех.работы: ${settings.maintenanceMode ? 'ВКЛ ✅' : 'выкл'}`, callback_data: 'admin_toggle_maintenance' }],
-      [{ text: `🎉 x2 награды: ${settings.doubleRewards ? 'ВКЛ ✅' : 'выкл'}`, callback_data: 'admin_toggle_double' }]
-    ]
+    totalUsers: all.length,
+    dau: all.filter((p) => p.lastSeen >= dayStart.getTime()).length,
+    wau: all.filter((p) => p.lastSeen >= weekAgo).length,
+    newToday: all.filter((p) => p.createdAt >= dayStart.getTime()).length,
+    banned: all.filter((p) => p.isBanned).length,
+    totalCoins: sum((p) => p.coins), totalGems: sum((p) => p.gems), totalStars: sum((p) => p.totalStars),
+    avgLevel: all.length ? Math.round((sum((p) => p.bestLevel) / all.length) * 10) / 10 : 0,
+    maxLevel: all.reduce((m, p) => Math.max(m, p.bestLevel), 1),
+    topRich: top((p) => p.coins), topLevel: top((p) => p.bestLevel * 1000 + p.totalStars)
   };
 }
 
+/* ============================================================
+   4. РАССЫЛКА
+   ============================================================ */
+const broadcast = { running: false, total: 0, sent: 0, failed: 0 };
+async function runBroadcast(text, opts) {
+  const ids = Object.keys(players).filter((id) => !players[id].isBanned);
+  Object.assign(broadcast, { running: true, total: ids.length, sent: 0, failed: 0 });
+  const markup = opts && opts.withButton ? { inline_keyboard: [[{ text: opts.buttonText || '🎮 Играть', web_app: { url: WEBAPP_URL } }]] } : undefined;
+  for (const id of ids) {
+    try { await bot.sendMessage(id, text, { parse_mode: 'HTML', reply_markup: markup }); broadcast.sent++; }
+    catch (e) { broadcast.failed++; }
+    await new Promise((r) => setTimeout(r, 45));
+  }
+  broadcast.running = false;
+}
+
+/* ============================================================
+   5. TELEGRAM-БОТ
+   ============================================================ */
+let bot = null;
+const adminSessions = {};
+function statsText() {
+  const s = computeStats();
+  let t = `📊 <b>Fruit Blitz — статистика</b>\n\n👥 Игроков: <b>${s.totalUsers}</b> (новых сегодня: ${s.newToday})\n🟢 DAU: <b>${s.dau}</b> · WAU: <b>${s.wau}</b>\n🚩 Средний уровень: <b>${s.avgLevel}</b> · макс: <b>${s.maxLevel}</b>\n🪙 Монет: <b>${s.totalCoins}</b> · 💎 Кристаллов: <b>${s.totalGems}</b>\n⭐ Звёзд: <b>${s.totalStars}</b> · 🚫 Банов: ${s.banned}\n\n🏆 <b>Топ по уровню:</b>\n`;
+  s.topLevel.forEach((p, i) => { t += `${i + 1}. ${p.name} — ур. ${p.bestLevel}, ⭐${p.totalStars}\n`; });
+  return t;
+}
+function adminKeyboard() {
+  return { inline_keyboard: [
+    [{ text: '🔄 Обновить', callback_data: 'admin_refresh' }, { text: '📢 Рассылка', callback_data: 'admin_broadcast' }],
+    [{ text: `🛠 Техработы: ${settings.maintenanceMode ? 'ВКЛ' : 'выкл'}`, callback_data: 'admin_maint' }],
+    [{ text: `🎉 x2 награды: ${settings.doubleRewards ? 'ВКЛ' : 'выкл'}`, callback_data: 'admin_double' }],
+    [{ text: '⚙️ Открыть админку', web_app: { url: WEBAPP_URL } }]
+  ] };
+}
+
 if (!BOT_TOKEN) {
-  console.warn('⚠️  BOT_TOKEN не задан в переменных окружения — бот не запущен. Веб-сервер продолжит работу.');
+  console.warn('⚠️  BOT_TOKEN не задан — бот не запущен, работает только веб-сервер (режим разработки).');
 } else {
   bot = new TelegramBot(BOT_TOKEN, { polling: true });
-  console.log('🤖 Telegram-бот запущен (polling)');
-  if (!ADMIN_IDS.length) console.warn('⚠️  ADMIN_ID не задан — админ-функции недоступны никому.');
+  bot.on('polling_error', (e) => console.error('Polling error:', e.message));
 
-  bot.on('polling_error', (err) => console.error('Polling error:', err.message));
-
-  /* ---------- /start (в т.ч. /start ref_12345) ---------- */
-  bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const fromId = msg.from.id;
-    const firstName = msg.from.first_name || 'друг';
-    const username = msg.from.username || null;
-    const payload = match && match[1] ? match[1].trim() : null;
-
-    const player = getOrCreatePlayer(fromId, { name: firstName, username });
-    if (player.isBanned) {
-      await bot.sendMessage(chatId, '⛔ Ваш доступ к игре заблокирован администратором.');
-      return;
+  bot.onText(/^\/start(?:\s+(.+))?/, async (msg, match) => {
+    const from = msg.from;
+    const p = getOrCreatePlayer(from.id, { name: from.first_name, username: from.username });
+    if (p.isBanned) return bot.sendMessage(msg.chat.id, '⛔ Доступ к игре заблокирован.').catch(() => {});
+    const payload = match && match[1] ? match[1].trim() : '';
+    if (payload.startsWith('ref_')) {
+      const r = creditReferral(from.id, payload.slice(4), { name: from.first_name, username: from.username });
+      if (r.credited) bot.sendMessage(payload.slice(4), `🎉 ${from.first_name || 'Друг'} присоединился по вашей ссылке! +${r.bonus} 🪙`).catch(() => {});
     }
-
-    if (payload && payload.startsWith('ref_')) {
-      const referrerId = payload.slice(4);
-      const result = creditReferral(fromId, referrerId, { name: firstName, username });
-      if (result.credited) {
-        try { await bot.sendMessage(referrerId, `🎉 Ваш друг ${firstName} присоединился к Fruit Blitz по вашей ссылке!\nВам начислено +${result.bonus} 🪙`); }
-        catch (e) { /* noop */ }
-      }
-    }
-
-    const welcomeText =
-      `Привет, ${firstName}! 🍓 Добро пожаловать в Fruit Blitz!\n\n` +
-      `Собирай сочные фрукты в ряд, проходи уровни, соревнуйся с друзьями и зарабатывай монеты! 🔥`;
-
-    const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${fromId}`;
-    const shareText = `Играю в Fruit Blitz — залипательные три-в-ряд! Присоединяйся 🍇🍎🍓`;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(shareText)}`;
-
-    const keyboard = {
-      inline_keyboard: [
-        [{ text: '🎮 Играть в Fruit Blitz', web_app: { url: WEBAPP_URL } }],
-        [{ text: '👥 Пригласить друга', url: shareUrl }],
-        [{ text: '🏆 Таблица лидеров', callback_data: 'leaderboard' }]
-      ]
-    };
-
-    try { await bot.sendMessage(chatId, welcomeText, { reply_markup: keyboard }); }
-    catch (e) { console.error('Ошибка отправки приветствия:', e.message); }
+    saveDB();
+    const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${from.id}`;
+    const share = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('Залипательная игра «три в ряд» прямо в Telegram 🍓 Заходи!')}`;
+    const text = `Привет, ${from.first_name || 'друг'}! 🍓 Добро пожаловать в <b>Fruit Blitz</b>!\n\n` +
+      `🎯 Проходи уровни и собирай звёзды\n🌳 Строй свой волшебный Сад\n🎁 Открывай скины, рамки и сундуки\n👥 Приглашай друзей — +${REF_BONUS_COINS} 🪙 за каждого!`;
+    bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
+      [{ text: '🎮 Играть', web_app: { url: WEBAPP_URL } }],
+      [{ text: '👥 Пригласить друга', url: share }, { text: '🏆 Рейтинг', callback_data: 'leaderboard' }]
+    ] } }).catch((e) => console.error(e.message));
   });
 
-  /* ---------- /admin ---------- */
-  bot.onText(/\/admin/, async (msg) => {
-    const chatId = msg.chat.id;
-    if (!isAdminId(msg.from.id)) { await bot.sendMessage(chatId, '⛔ Доступ запрещён.'); return; }
-    try { await bot.sendMessage(chatId, adminStatsText(), { parse_mode: 'HTML', reply_markup: adminKeyboard() }); }
-    catch (e) { console.error('Admin panel error:', e.message); }
+  bot.onText(/^\/admin/, (msg) => {
+    if (!isAdminId(msg.from.id)) return bot.sendMessage(msg.chat.id, '⛔ Доступ запрещён.').catch(() => {});
+    bot.sendMessage(msg.chat.id, statsText(), { parse_mode: 'HTML', reply_markup: adminKeyboard() }).catch(() => {});
   });
 
-  /* ---------- Текстовые сообщения (сценарий рассылки) ---------- */
-  bot.on('message', async (msg) => {
-    const chatId = msg.chat.id;
+  bot.on('message', (msg) => {
     if (!msg.text || msg.text.startsWith('/')) return;
-    if (adminSessions[chatId] === 'awaiting_broadcast' && isAdminId(msg.from.id)) {
-      delete adminSessions[chatId];
-      const text = msg.text;
-      await bot.sendMessage(chatId, `📢 Рассылка запущена на ${Object.keys(players).length} игроков...`);
-      broadcastToAll(text, { buttonUrl: `https://t.me/${BOT_USERNAME}/Play`, buttonText: '🎮 Играть' })
-        .then(() => bot.sendMessage(chatId, `✅ Рассылка завершена.\nУспешно: ${broadcastState.sent}\nОшибок: ${broadcastState.failed}`))
-        .catch(() => {});
+    if (adminSessions[msg.chat.id] === 'broadcast' && isAdminId(msg.from.id)) {
+      delete adminSessions[msg.chat.id];
+      if (broadcast.running) return bot.sendMessage(msg.chat.id, 'Рассылка уже идёт.').catch(() => {});
+      bot.sendMessage(msg.chat.id, `📢 Отправка ${Object.keys(players).length} игрокам...`).catch(() => {});
+      runBroadcast(msg.text, { withButton: true }).then(() =>
+        bot.sendMessage(msg.chat.id, `✅ Готово. Доставлено: ${broadcast.sent}, ошибок: ${broadcast.failed}`).catch(() => {}));
     }
   });
 
-  /* ---------- Инлайн-кнопки ---------- */
-  bot.on('callback_query', async (query) => {
-    const chatId = query.message.chat.id;
-    const isAdmin = isAdminId(query.from.id);
-
-    if (query.data === 'leaderboard') {
-      const top = getTopPlayers(10);
-      let text = '🏆 Топ-10 игроков Fruit Blitz\n\n';
-      if (top.length === 0) {
-        text += 'Пока никто не набрал очков. Будь первым!';
+  bot.on('callback_query', async (q) => {
+    const chatId = q.message.chat.id;
+    if (q.data === 'leaderboard') {
+      const top = leaderboard(10);
+      const medals = ['🥇', '🥈', '🥉'];
+      const text = '🏆 <b>Топ-10 Fruit Blitz</b>\n\n' + (top.length ? top.map((p, i) => `${medals[i] || (i + 1) + '.'} ${p.name} — ур. ${p.bestLevel}, ⭐${p.totalStars}`).join('\n') : 'Пока пусто — стань первым!');
+      bot.sendMessage(chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    } else if (q.data.startsWith('admin_')) {
+      if (!isAdminId(q.from.id)) return bot.answerCallbackQuery(q.id, { text: 'Доступ запрещён', show_alert: true }).catch(() => {});
+      if (q.data === 'admin_broadcast') {
+        adminSessions[chatId] = 'broadcast';
+        bot.sendMessage(chatId, '✏️ Пришлите текст рассылки следующим сообщением (можно HTML).').catch(() => {});
       } else {
-        const medals = ['🥇', '🥈', '🥉'];
-        top.forEach((p, i) => {
-          const medal = medals[i] || `${i + 1}.`;
-          const name = p.username ? `${p.name} (@${p.username})` : p.name;
-          text += `${medal} ${name} — ${p.bestScore} очков (ур. ${p.bestLevel})\n`;
-        });
-      }
-      try { await bot.sendMessage(chatId, text); } catch (e) { /* noop */ }
-    }
-
-    if (query.data.startsWith('admin_')) {
-      if (!isAdmin) { await bot.answerCallbackQuery(query.id, { text: 'Доступ запрещён', show_alert: true }); return; }
-      if (query.data === 'admin_refresh') {
-        try { await bot.editMessageText(adminStatsText(), { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', reply_markup: adminKeyboard() }); } catch (e) { /* noop */ }
-      } else if (query.data === 'admin_broadcast') {
-        adminSessions[chatId] = 'awaiting_broadcast';
-        try { await bot.sendMessage(chatId, '✏️ Отправьте текст рассылки следующим сообщением (поддерживается HTML-разметка).'); } catch (e) { /* noop */ }
-      } else if (query.data === 'admin_toggle_maintenance') {
-        settings.maintenanceMode = !settings.maintenanceMode; saveSettings();
-        try { await bot.editMessageReplyMarkup(adminKeyboard(), { chat_id: chatId, message_id: query.message.message_id }); } catch (e) { /* noop */ }
-      } else if (query.data === 'admin_toggle_double') {
-        settings.doubleRewards = !settings.doubleRewards; saveSettings();
-        try { await bot.editMessageReplyMarkup(adminKeyboard(), { chat_id: chatId, message_id: query.message.message_id }); } catch (e) { /* noop */ }
+        if (q.data === 'admin_maint') { settings.maintenanceMode = !settings.maintenanceMode; saveSettings(); }
+        if (q.data === 'admin_double') { settings.doubleRewards = !settings.doubleRewards; saveSettings(); }
+        bot.editMessageText(statsText(), { chat_id: chatId, message_id: q.message.message_id, parse_mode: 'HTML', reply_markup: adminKeyboard() }).catch(() => {});
       }
     }
-
-    try { await bot.answerCallbackQuery(query.id); } catch (e) { /* noop */ }
+    bot.answerCallbackQuery(q.id).catch(() => {});
   });
 }
 
 /* ============================================================
-   8. EXPRESS: СТАТИКА + ПУБЛИЧНЫЙ API
+   6. EXPRESS
    ============================================================ */
 const app = express();
 app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: '64kb' }));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 
-/* ---------- GET /api/game-settings (публичный) ---------- */
-app.get('/api/game-settings', (req, res) => {
-  res.json({ success: true, maintenanceMode: settings.maintenanceMode, doubleRewards: settings.doubleRewards });
-});
-
-/* ---------- GET /api/player-sync (публичный: игрок читает СВОЮ запись + бан-статус) ---------- */
-app.get('/api/player-sync', (req, res) => {
-  const { telegram_id, name, username } = req.query;
-  if (!telegram_id) return res.status(400).json({ success: false, error: 'telegram_id обязателен' });
-  const player = getOrCreatePlayer(telegram_id, { name, username });
-  res.json({ success: true, player });
-});
-
-/* ---------- POST /api/save-progress (игрок пушит свой актуальный прогресс) ---------- */
-app.post('/api/save-progress', (req, res) => {
-  const { telegram_id, level, score, coins, gems, lives, name, username } = req.body || {};
-  if (!telegram_id) return res.status(400).json({ success: false, error: 'telegram_id обязателен' });
-
-  const player = getOrCreatePlayer(telegram_id, { name, username });
-  if (player.isBanned) return res.status(403).json({ success: false, error: 'Аккаунт заблокирован' });
-
-  if (typeof level === 'number') player.bestLevel = Math.max(player.bestLevel || 1, level);
-  if (typeof score === 'number') player.bestScore = Math.max(player.bestScore || 0, score);
-  if (typeof coins === 'number') player.coins = Math.max(0, coins);
-  if (typeof gems === 'number') player.gems = Math.max(0, gems);
-  if (typeof lives === 'number') player.lives = Math.max(0, lives);
-  player.updatedAt = Date.now();
-  saveDB();
-
-  return res.json({ success: true, player });
-});
-
-/* ---------- GET /api/leaderboard ---------- */
+app.get('/api/game-settings', (req, res) => res.json({ success: true, ...publicSettings() }));
 app.get('/api/leaderboard', (req, res) => {
-  const limit = Math.min(50, parseInt(req.query.limit, 10) || 10);
-  res.json({ success: true, leaderboard: getTopPlayers(limit) });
+  const limit = Math.min(100, parseInt(req.query.limit, 10) || 50);
+  res.json({ success: true, leaderboard: leaderboard(limit) });
 });
 
-/* ---------- POST /api/ref-bonus ---------- */
-app.post('/api/ref-bonus', (req, res) => {
-  const { telegram_id, ref_id, name, username } = req.body || {};
-  if (!telegram_id || !ref_id) return res.status(400).json({ success: false, error: 'telegram_id и ref_id обязательны' });
-  const result = creditReferral(telegram_id, ref_id, { name, username });
-  if (!result.credited) return res.json({ success: false, reason: result.reason });
-  return res.json({ success: true, bonus: result.bonus });
-});
-
-/* ============================================================
-   9. АДМИН API (каждый эндпоинт защищён requireAdmin)
-   ============================================================ */
-
-/* ---------- GET /api/admin/stats ---------- */
-app.get('/api/admin/stats', requireAdmin, (req, res) => {
-  res.json({ success: true, stats: computeStats() });
-});
-
-/* ---------- GET /api/admin/players — ВСЕ зарегистрированные игроки ---------- */
-app.get('/api/admin/players', requireAdmin, (req, res) => {
-  const all = Object.values(players)
-    .map((p) => normalizePlayer(p))
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  res.json({ success: true, players: all });
-});
-
-/* ---------- GET /api/admin/search?q=... (по ID или @username) ---------- */
-app.get('/api/admin/search', requireAdmin, (req, res) => {
-  const q = String(req.query.q || '').trim().toLowerCase().replace(/^@/, '');
-  if (!q) return res.json({ success: true, results: [] });
-  const results = Object.values(players)
-    .map((p) => normalizePlayer(p))
-    .filter((p) => String(p.id) === q || (p.username && p.username.toLowerCase().includes(q)) || (p.name && p.name.toLowerCase().includes(q)))
-    .slice(0, 25);
-  res.json({ success: true, results });
-});
-
-/* ---------- GET /api/admin/player/:id ---------- */
-app.get('/api/admin/player/:id', requireAdmin, (req, res) => {
-  const player = players[String(req.params.id)];
-  if (!player) return res.status(404).json({ success: false, error: 'Игрок не найден' });
-  res.json({ success: true, player: normalizePlayer(player) });
-});
-
-/* ---------- POST /api/admin/action — ЕДИНЫЙ эндпоинт всех действий админки ----------
-   body: { telegram_id | init_data (для requireAdmin), target_id, action, ...payload }
-   action:
-     'update_coins'   { mode: 'add' | 'set', value: number }
-     'update_gems'    { mode: 'add' | 'set', value: number }
-     'set_level'      { level: number }               // 1..30+
-     'set_lives'      { mode: 'restore' | 'block' }    // restore -> 5, block -> 0
-     'toggle_ban'     { isBanned: boolean }
-     'reset_progress' {}                                // монеты/кристаллы/уровень/жизни к начальным
-------------------------------------------------------------------------------------- */
-app.post('/api/admin/action', requireAdmin, (req, res) => {
-  const { target_id, action } = req.body || {};
-  const player = players[String(target_id)];
-  if (!player) return res.status(404).json({ success: false, error: 'Игрок не найден' });
-
-  switch (action) {
-    case 'update_coins': {
-      const { mode, value } = req.body;
-      const v = Number(value) || 0;
-      player.coins = Math.max(0, mode === 'set' ? v : (player.coins || 0) + v);
-      break;
-    }
-    case 'update_gems': {
-      const { mode, value } = req.body;
-      const v = Number(value) || 0;
-      player.gems = Math.max(0, mode === 'set' ? v : (player.gems || 0) + v);
-      break;
-    }
-    case 'set_level': {
-      const level = parseInt(req.body.level, 10);
-      player.bestLevel = Math.max(1, isNaN(level) ? 1 : level);
-      break;
-    }
-    case 'set_lives': {
-      player.lives = req.body.mode === 'block' ? 0 : 5;
-      break;
-    }
-    case 'toggle_ban': {
-      player.isBanned = !!req.body.isBanned;
-      player.bannedAt = player.isBanned ? Date.now() : null;
-      break;
-    }
-    case 'reset_progress': {
-      player.coins = 0;
-      player.gems = 0;
-      player.lives = 5;
-      player.bestLevel = 1;
-      player.bestScore = 0;
-      break;
-    }
-    default:
-      return res.status(400).json({ success: false, error: `Неизвестное действие: ${action}` });
-  }
-
-  player.updatedAt = Date.now();
-  normalizePlayer(player);
+/* Игрок читает свою серверную запись (облачное сохранение + начисления админа) */
+app.get('/api/player-sync', requireUser, (req, res) => {
+  const p = getOrCreatePlayer(req.user.id, req.user);
+  p.lastSeen = Date.now();
   saveDB();
-  res.json({ success: true, player, adminId: req.adminId });
+  res.json({ success: true, player: p, settings: publicSettings() });
 });
 
-/* ---------- GET/POST /api/admin/settings ---------- */
+/* Игрок отправляет прогресс. Если админ успел изменить аккаунт после последней синхронизации
+   клиента (adminRev клиента устарел) — прогресс НЕ перезаписывается, клиент сначала подтягивает изменения. */
+app.post('/api/save-progress', requireUser, (req, res) => {
+  const p = getOrCreatePlayer(req.user.id, req.user);
+  if (p.isBanned) return res.status(403).json({ success: false, error: 'Аккаунт заблокирован' });
+  const b = req.body || {};
+  if (num(b.adminRev, 0) < p.adminRev) return res.status(409).json({ success: false, needsPull: true, player: p });
+  const clampInt = (v, max) => Math.max(0, Math.min(max, Math.floor(num(v, 0))));
+  if (typeof b.coins === 'number') p.coins = clampInt(b.coins, 1e9);
+  if (typeof b.gems === 'number') p.gems = clampInt(b.gems, 1e7);
+  if (typeof b.lives === 'number') p.lives = clampInt(b.lives, 99);
+  if (typeof b.level === 'number') p.bestLevel = Math.max(1, clampInt(b.level, 100000));
+  if (typeof b.totalStars === 'number') p.totalStars = clampInt(b.totalStars, 1e6);
+  if (typeof b.starsBank === 'number') p.starsBank = clampInt(b.starsBank, 1e6);
+  if (typeof b.score === 'number') p.bestScore = Math.max(p.bestScore, clampInt(b.score, 1e9));
+  if (b.boosters && typeof b.boosters === 'object') BOOSTER_KEYS.forEach((k) => { if (typeof b.boosters[k] === 'number') p.boosters[k] = clampInt(b.boosters[k], 9999); });
+  p.updatedAt = p.lastSeen = Date.now();
+  saveDB();
+  res.json({ success: true, player: p });
+});
+
+app.post('/api/ref-bonus', requireUser, (req, res) => {
+  const r = creditReferral(req.user.id, (req.body || {}).ref_id, req.user);
+  res.json({ success: r.credited, bonus: r.bonus || 0 });
+});
+
+/* ---------------- Админ API ---------------- */
+app.get('/api/am-i-admin', (req, res) => { const u = resolveUser(req); res.json({ success: true, admin: !!(u && isAdminId(u.id)) }); });
+app.get('/api/admin/stats', requireAdmin, (req, res) => res.json({ success: true, stats: computeStats() }));
+app.get('/api/admin/players', requireAdmin, (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase().replace(/^@/, '');
+  let list = Object.values(players);
+  if (q) list = list.filter((p) => p.id === q || (p.username || '').toLowerCase().includes(q) || (p.name || '').toLowerCase().includes(q));
+  list.sort((a, b) => b.lastSeen - a.lastSeen);
+  res.json({ success: true, total: list.length, players: list.slice(0, 200) });
+});
+app.get('/api/admin/player/:id', requireAdmin, (req, res) => {
+  const p = players[String(req.params.id)];
+  if (!p) return res.status(404).json({ success: false, error: 'Игрок не найден' });
+  res.json({ success: true, player: normalizePlayer(p) });
+});
+app.post('/api/admin/action', requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const p = players[String(b.target_id)];
+  if (!p) return res.status(404).json({ success: false, error: 'Игрок не найден' });
+  const v = Math.floor(num(Number(b.value), 0));
+  switch (b.action) {
+    case 'update_coins': p.coins = Math.max(0, b.mode === 'set' ? v : p.coins + v); break;
+    case 'update_gems': p.gems = Math.max(0, b.mode === 'set' ? v : p.gems + v); break;
+    case 'set_lives': p.lives = Math.max(0, Math.min(99, v)); break;
+    case 'set_level': p.bestLevel = Math.max(1, v); break;
+    case 'set_stars': p.starsBank = Math.max(0, v); break;
+    case 'give_booster': {
+      if (!BOOSTER_KEYS.includes(b.booster)) return res.status(400).json({ success: false, error: 'Неизвестный бустер' });
+      p.boosters[b.booster] = Math.max(0, p.boosters[b.booster] + v); break;
+    }
+    case 'toggle_ban': p.isBanned = !!b.isBanned; p.bannedAt = p.isBanned ? Date.now() : null; break;
+    case 'reset_progress':
+      Object.assign(p, { coins: 500, gems: 20, lives: 10, bestLevel: 1, bestScore: 0, totalStars: 0, starsBank: 0, resetToken: String(Date.now()) });
+      BOOSTER_KEYS.forEach((k) => { p.boosters[k] = 0; });
+      break;
+    default: return res.status(400).json({ success: false, error: 'Неизвестное действие' });
+  }
+  p.adminRev += 1;
+  p.updatedAt = Date.now();
+  normalizePlayer(p);
+  saveDB();
+  res.json({ success: true, player: p });
+});
 app.get('/api/admin/settings', requireAdmin, (req, res) => res.json({ success: true, settings }));
 app.post('/api/admin/settings', requireAdmin, (req, res) => {
-  const { maintenanceMode, doubleRewards } = req.body || {};
-  if (typeof maintenanceMode === 'boolean') settings.maintenanceMode = maintenanceMode;
-  if (typeof doubleRewards === 'boolean') settings.doubleRewards = doubleRewards;
+  const b = req.body || {};
+  if (typeof b.maintenanceMode === 'boolean') settings.maintenanceMode = b.maintenanceMode;
+  if (typeof b.doubleRewards === 'boolean') settings.doubleRewards = b.doubleRewards;
+  if (b.globalGift === null) settings.globalGift = null;
+  else if (b.globalGift && typeof b.globalGift === 'object') {
+    const g = b.globalGift;
+    settings.globalGift = {
+      id: 'g' + Date.now(),
+      coins: Math.max(0, Math.floor(num(Number(g.coins), 0))),
+      gems: Math.max(0, Math.floor(num(Number(g.gems), 0))),
+      booster: BOOSTER_KEYS.includes(g.booster) ? g.booster : null,
+      boosterAmount: Math.max(0, Math.floor(num(Number(g.boosterAmount), 0))),
+      message: String(g.message || 'Подарок от команды Fruit Blitz!').slice(0, 200),
+      createdAt: Date.now()
+    };
+  }
   saveSettings();
   res.json({ success: true, settings });
 });
-
-/* ---------- POST /api/admin/broadcast (запуск) ---------- */
 app.post('/api/admin/broadcast', requireAdmin, (req, res) => {
   if (!bot) return res.status(400).json({ success: false, error: 'Бот не запущен (нет BOT_TOKEN)' });
-  if (broadcastState.running) return res.status(409).json({ success: false, error: 'Рассылка уже выполняется' });
-  const { message, parseMode, buttonUrl, buttonText } = req.body || {};
-  if (!message) return res.status(400).json({ success: false, error: 'Текст сообщения обязателен' });
-  broadcastToAll(message, { parseMode: parseMode || 'HTML', buttonUrl, buttonText }).catch((e) => console.error('Broadcast error:', e.message));
-  res.json({ success: true, started: true, total: Object.keys(players).length });
+  if (broadcast.running) return res.status(409).json({ success: false, error: 'Рассылка уже идёт' });
+  const b = req.body || {};
+  if (!b.message) return res.status(400).json({ success: false, error: 'Пустой текст' });
+  runBroadcast(String(b.message), { withButton: b.withButton !== false, buttonText: b.buttonText });
+  res.json({ success: true, total: Object.keys(players).length });
 });
+app.get('/api/admin/broadcast/status', requireAdmin, (req, res) => res.json({ success: true, ...broadcast }));
 
-/* ---------- GET /api/admin/broadcast/status ---------- */
-app.get('/api/admin/broadcast/status', requireAdmin, (req, res) => res.json({ success: true, ...broadcastState }));
-
-/* ---------- Fallback: отдаём index.html для прочих маршрутов ---------- */
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-/* ============================================================
-   10. ЗАПУСК
-   ============================================================ */
 app.listen(PORT, () => {
-  console.log(`🚀 Fruit Blitz сервер запущен на порту ${PORT}`);
-  console.log(`   WebApp URL: ${WEBAPP_URL}`);
-  console.log(`   Админы: ${ADMIN_IDS.length ? ADMIN_IDS.join(', ') : '(не заданы)'}`);
+  console.log(`🚀 Fruit Blitz: порт ${PORT}`);
+  console.log(`   Данные: ${DATA_DIR} — игроков загружено: ${Object.keys(players).length}`);
+  console.log(`   Админы: ${ADMIN_IDS.join(', ') || '(не заданы — задайте ADMIN_ID)'}`);
+  if (DEV_TRUST_IDS) console.warn('   ⚠️  Режим разработки: telegram_id принимается без подписи (нет BOT_TOKEN).');
+  if (!process.env.DATA_DIR) console.warn('   ⚠️  DATA_DIR не задан — данные пропадут при редеплое без Volume!');
 });
