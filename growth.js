@@ -113,7 +113,8 @@ module.exports = function attachGrowth(ctx) {
       notifyOff: all.filter((p) => p.notify && p.notify.on === false).length,
       notifyBlocked: all.filter((p) => p.notify && p.notify.blocked).length,
       passBuyers: eco ? eco.passBuyers() : 0, season: Items.seasonInfo(),
-      remindersEnabled: settings.remindersEnabled !== false
+      remindersEnabled: settings.remindersEnabled !== false,
+      channel: { name: CHANNEL, url: CHANNEL_URL, joined: all.filter((p) => p.channelRewarded).length, verify: channelState }
     } });
   });
   app.post('/api/admin/reminders', requireAdmin, (req, res) => {
@@ -313,6 +314,46 @@ module.exports = function attachGrowth(ctx) {
       res.json({ success: true, url, refLink }); // клиент поделится ссылкой или историей
     }
   });
+  /* ============================================================
+     4. КАНАЛ С НОВОСТЯМИ: задание «Подпишись» с проверкой через бота
+     Для настоящей проверки бот должен быть администратором канала (любые права).
+     Если проверить нельзя (бот не админ) — награда выдаётся после открытия канала,
+     а в админке показывается предупреждение.
+     ============================================================ */
+  const CHANNEL = process.env.NEWS_CHANNEL || '@fruitblitz_news';
+  const CHANNEL_URL = process.env.NEWS_CHANNEL_URL || 'https://t.me/fruitblitz_news';
+  const CHANNEL_REWARD = { coins: 1000, gems: 20 };
+  const channelState = { ok: null, error: null, at: 0 };
+  async function isMember(uid) {
+    if (!BOT_TOKEN) return true; // локальная разработка
+    try {
+      const m = await tgCall('getChatMember', { chat_id: CHANNEL, user_id: Number(uid) });
+      Object.assign(channelState, { ok: true, error: null, at: now() });
+      return ['member', 'administrator', 'creator'].includes(m.status) || (m.status === 'restricted' && m.is_member);
+    } catch (e) {
+      Object.assign(channelState, { ok: false, error: e.message, at: now() });
+      console.error('Проверка подписки на канал:', e.message);
+      return null; // проверить невозможно
+    }
+  }
+  app.get('/api/channel/info', (req, res) => res.json({ success: true, url: CHANNEL_URL, reward: CHANNEL_REWARD }));
+  app.post('/api/channel/check', requireUser, async (req, res) => {
+    const p = players[String(req.user.id)];
+    if (!p || p.isBanned) return fail(res, 403, 'Недоступно');
+    if (p.channelRewarded) return res.json({ success: true, member: true, already: true });
+    let member = await isMember(p.id);
+    if (member === null) member = !!req.body.opened;
+    if (!member) return res.json({ success: true, member: false });
+    p.channelRewarded = now();
+    const d = dayKey(); bump(an.events[d] || (an.events[d] = {}), 'channel_join'); saveAn();
+    saveDB();
+    res.json({ success: true, member: true, reward: CHANNEL_REWARD });
+  });
+  app.post('/api/admin/channel-test', requireAdmin, async (req, res) => {
+    const m = await isMember(req.user.id);
+    res.json({ success: true, channel: CHANNEL, verifyOk: m !== null, member: m, error: channelState.error });
+  });
+
   // Удаляем карточки старше 3 дней
   function cleanShare() {
     try {

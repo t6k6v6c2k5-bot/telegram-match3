@@ -276,7 +276,8 @@ if (!BOT_TOKEN) {
       `🎯 Проходи уровни и собирай звёзды\n🌳 Строй свой волшебный Сад\n🎁 Открывай скины, рамки и сундуки\n👥 Приглашай друзей — +${REF_BONUS_COINS} 🪙 за каждого!`;
     bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
       [{ text: '🎮 Играть', web_app: { url: WEBAPP_URL } }],
-      [{ text: '👥 Пригласить друга', url: share }, { text: '🏆 Рейтинг', callback_data: 'leaderboard' }]
+      [{ text: '👥 Пригласить друга', url: share }, { text: '🏆 Рейтинг', callback_data: 'leaderboard' }],
+      [{ text: '📢 Новости игры', url: process.env.NEWS_CHANNEL_URL || 'https://t.me/fruitblitz_news' }]
     ] } }).catch((e) => console.error(e.message));
   });
 
