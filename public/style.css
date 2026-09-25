@@ -799,3 +799,12 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .pf-stat small { font-size: 10px; color: var(--muted); text-align: center; }
 .pf-event { font-size: 12.5px; padding: 6px 2px; border-bottom: 1px solid rgba(255,255,255,.06); }
 .pf-event small { color: var(--muted); }
+
+/* ---------------- Канал с новостями ---------------- */
+.channel-teaser { position: relative; background: linear-gradient(135deg, rgba(79,163,255,.35), rgba(79,227,255,.15)); border-color: rgba(79,227,255,.5); }
+.channel-teaser .dot { position: absolute; top: 6px; right: 8px; }
+.channel-card { width: min(360px, 100%); }
+.channel-card .btn-green { margin-top: 10px; }
+.channel-reward { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0 4px; padding: 10px; border-radius: 14px; background: rgba(255,210,63,.15); border: 1px solid rgba(255,210,63,.4); font-size: 14px; }
+.channel-reward b { color: var(--gold); font-size: 16px; }
+.channel-deal { background: linear-gradient(135deg, rgba(79,163,255,.3), rgba(79,227,255,.12)); border-color: rgba(79,227,255,.5); margin-bottom: 8px; }

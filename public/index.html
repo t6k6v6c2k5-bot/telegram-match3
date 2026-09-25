@@ -71,6 +71,12 @@
           <button class="home-tile" id="tileLeaders"><span class="tile-ico">🏆</span><b>Рейтинг</b><small>Топ игроков</small></button>
         </div>
 
+        <button class="teaser channel-teaser hidden" id="channelTeaser">
+          <span class="teaser-ico">📢</span>
+          <span class="teaser-text"><b>Подпишись на новости</b><small>Ивенты, промокоды и обновления · 💎20 + 🪙1000</small></span>
+          <span class="teaser-cta">Забрать ›</span><i class="dot" id="dotChannel"></i>
+        </button>
+
         <button class="teaser pass-teaser" id="passTeaser">
           <span class="teaser-ico">🎟️</span>
           <span class="teaser-text"><b id="passTeaserTitle">Сезонный пропуск</b><small id="passTeaserSub">Уровень 0</small>
@@ -283,6 +289,7 @@
       <button class="setting-row" id="setVibro"><span>📳 Вибрация</span><b class="toggle on" id="setVibroVal"></b></button>
       <button class="setting-row" id="setNotify"><span>🔔 Напоминания в Telegram</span><b class="toggle on" id="setNotifyVal"></b></button>
       <button class="setting-row" id="setShareProfile"><span>📤 Поделиться прогрессом</span><b>›</b></button>
+      <button class="setting-row" id="setChannel"><span>📢 Канал с новостями</span><b>›</b></button>
       <button class="setting-row" id="setTutorial"><span>🎓 Пройти обучение заново</span><b>›</b></button>
       <button class="setting-row" id="setInvite"><span>👥 Пригласить друга (+300 🪙)</span><b>›</b></button>
       <p class="muted tiny" id="settingsInfo"></p>
@@ -319,6 +326,19 @@
       <h2>🔴 Прямо сейчас</h2>
       <p class="muted tiny">Редкие находки, крупные сделки и рекорды игроков</p>
       <div id="feedList" class="feed-list"></div>
+    </div>
+  </div>
+
+  <div id="modalChannel" class="overlay hidden">
+    <div class="card channel-card">
+      <button class="modal-x" data-close="modalChannel">✕</button>
+      <div class="big-emoji">📢</div>
+      <h2>Канал Fruit Blitz</h2>
+      <p class="muted">Первыми узнавайте о новых уровнях, ивентах с редкими предметами, промокодах и розыгрышах!</p>
+      <div class="channel-reward" id="channelReward"><span>🎁 За подписку:</span><b>💎 20</b><b>🪙 1000</b></div>
+      <button class="btn btn-primary btn-big" id="channelOpen">📢 Открыть канал</button>
+      <button class="btn btn-green" id="channelCheck">✅ Я подписался — забрать награду</button>
+      <p class="muted tiny" id="channelNote">Сначала подпишитесь, потом вернитесь в игру и нажмите «забрать»</p>
     </div>
   </div>
 

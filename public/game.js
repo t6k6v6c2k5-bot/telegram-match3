@@ -560,13 +560,15 @@
   function gardenCanBuild() {
     renderPassTeaser();
     refreshFeedStrip();
+    $('channelTeaser').classList.toggle('hidden', channelDone());
+    maybeChannelPromo();
     const area = gardenArea(state.garden.area);
     return area.items.some((it, i) => !state.garden.built.includes(i) && state.starsBank >= it[2]);
   }
   function questsClaimable() {
     ensureDaily();
     const q = state.daily.quests.some((id) => { const d = QUEST_POOL.find((x) => x.id === id); return d && !state.daily.claimed[id] && (state.daily.progress[d.stat] || 0) >= d.target; });
-    return q || loginReady() || ACHIEVEMENTS.some((a) => achTierReady(a));
+    return q || loginReady() || ACHIEVEMENTS.some((a) => achTierReady(a)) || (typeof state !== 'undefined' && !state.channelClaimed && state.unlockedLevel >= 2);
   }
   function updateBadges() {
     $('dotWheel').classList.toggle('hidden', !wheelReady());
@@ -1664,6 +1666,11 @@
     const body = $('questBody');
     body.innerHTML = '';
     if (questTab === 'daily') {
+      if (!channelDone()) {
+        const ch = el(`<div class="hero-deal channel-deal"><span class="h-ico">📢</span><div class="h-text"><b>Разовое задание: подпишись на канал</b><small>Новости и промокоды · 💎20 + 🪙1000</small></div><button class="btn btn-gold">Выполнить</button></div>`);
+        ch.querySelector('button').addEventListener('click', openChannel);
+        body.appendChild(ch);
+      }
       state.daily.quests.forEach((id) => {
         const q = QUEST_POOL.find((x) => x.id === id);
         if (!q) return;
@@ -2229,6 +2236,53 @@
       text: `Мой прогресс в Fruit Blitz: ${done} уровней и ⭐${totalStars()}! Догонишь? 🍓` });
   }
 
+  /* ============================================================
+     14e. КАНАЛ С НОВОСТЯМИ: задание «Подпишись»
+     ============================================================ */
+  const CHANNEL_URL = 'https://t.me/fruitblitz_news';
+  let channelOpened = false;
+  const channelDone = () => !!state.channelClaimed;
+  function openChannelLink() {
+    channelOpened = true;
+    track('channel_open');
+    try { if (tg && tg.openTelegramLink) { tg.openTelegramLink(CHANNEL_URL); return; } } catch (e) { /* ниже */ }
+    window.open(CHANNEL_URL, '_blank');
+  }
+  function openChannel() {
+    const done = channelDone();
+    $('channelReward').classList.toggle('hidden', done);
+    $('channelCheck').classList.toggle('hidden', done);
+    $('channelNote').textContent = done ? '✅ Вы уже подписаны — спасибо! Новости ждут в канале.' : 'Сначала подпишитесь, потом вернитесь в игру и нажмите «забрать»';
+    $('channelOpen').textContent = done ? '📢 Открыть канал' : '📢 1. Открыть канал';
+    $('channelCheck').textContent = '✅ 2. Я подписался — забрать';
+    openModal('modalChannel');
+  }
+  $('channelOpen').addEventListener('click', () => { Sound.click(); openChannelLink(); });
+  $('channelCheck').addEventListener('click', async () => {
+    if (playerId === 'guest') { showToast('Доступно внутри Telegram'); return; }
+    const b = $('channelCheck'); b.disabled = true; b.textContent = '⏳ Проверяем...';
+    const r = await api('/api/channel/check', { method: 'POST', body: { telegram_id: playerId, opened: channelOpened } });
+    b.disabled = false; b.textContent = '✅ 2. Я подписался — забрать';
+    if (!r.ok || !r.data) { showToast('⚠️ Нет связи с сервером, попробуйте ещё раз'); return; }
+    if (!r.data.member) { Sound.nope(); haptic('warning'); showToast('Подписка не найдена 🤔 Нажмите «Открыть канал» и подпишитесь'); return; }
+    state.channelClaimed = true; state.tips.channel = true; saveNow();
+    closeModal('modalChannel');
+    if (r.data.reward) await showReward(r.data.reward, { title: 'Спасибо за подписку!', sub: 'Новости, ивенты и промокоды — в канале 📢', icon: '📢' });
+    else showToast('✅ Награда за подписку уже получена');
+    if (currentScreen === 'screenHome') renderHome(); else if (currentScreen === 'screenQuests') renderQuests();
+  });
+  $('channelTeaser').addEventListener('click', () => { Sound.click(); openChannel(); });
+  $('setChannel').addEventListener('click', () => { closeModal('modalSettings'); openChannel(); });
+  // Одно приглашение после 3-го пройденного уровня (если не подписан)
+  function maybeChannelPromo() {
+    if (channelDone() || state.tips.channel || state.unlockedLevel < 4 || playerId === 'guest') return;
+    setTimeout(() => {
+      if (currentScreen !== 'screenHome' || anyModalOpen() || state.tips.channel || channelDone()) return;
+      state.tips.channel = true; saveState();
+      openChannel();
+    }, 1200);
+  }
+
   function shareText(text) {
     const url = `https://t.me/share/url?url=${encodeURIComponent(refLink())}&text=${encodeURIComponent(text)}`;
     try { if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); return; } } catch (e) { /* noop */ }
@@ -2391,6 +2445,7 @@
       applyServerSettings(pull.data.settings);
       mergeServerPlayer(pull.data.player);
       if (pull.data.player.notify) notifyOn = pull.data.player.notify.on !== false;
+      if (pull.data.player.channelRewarded && !state.channelClaimed) { state.channelClaimed = true; saveState(); }
       if (MK()) MK().refresh();
       let push = await api('/api/save-progress', { method: 'POST', body: progressPayload() });
       if (push.status === 409 && push.data && push.data.player) {
@@ -2564,12 +2619,22 @@
         <div class="a-stats">${Object.keys(NT).filter((k) => k !== 'test').map((k) => stat(NT[k], n7[k] || 0)).join('')}${stat('🔕 Отключили', a.notifyOff)}${stat('🚫 Бот заблокирован', a.notifyBlocked)}</div>
         <p class="muted tiny">Отправлено за 7 дней. Правила: не больше 2 сообщений в день, между ними от 4 ч, только с 9:00 до 22:00 по времени игрока.</p>
         <button class="btn btn-ghost" id="anTest">🧪 Прислать тестовое напоминание себе</button>
+        <p class="section-label">📢 Канал ${esc(a.channel.name)}</p>
+        <div class="a-stats">${stat('Подписались за награду', a.channel.joined)}${stat('За 7 дней', e7.channel_join || 0)}${stat('Открыли канал (7 дн.)', e7.channel_open || 0)}${stat('Проверка', a.channel.verify.ok === false ? '⚠️ нет' : a.channel.verify.ok ? '✅ работает' : '—')}</div>
+        ${a.channel.verify.ok === false ? `<p class="muted tiny" style="color:#ff9aac">Бот не может проверить подписку (${esc(a.channel.verify.error || '')}). Добавьте бота администратором канала — пока награда выдаётся без проверки.</p>` : ''}
+        <button class="btn btn-ghost" id="anChan">🔍 Проверить бота в канале</button>
         <p class="section-label">📤 Поделиться и 🎟️ пропуск (7 дней)</p>
         <div class="a-stats">${stat('Открыли окно', sumK(e7, 'share_open'))}${stat('Отправили', sumK(e7, 'share:'))}${stat('Открыли пропуск', e7.pass_open || 0)}${stat('👑 Премиум в сезоне', a.passBuyers)}</div>`;
       $('anRem').addEventListener('click', async () => {
         const res = await api('/api/admin/reminders', { method: 'POST', body: abody({ enabled: !a.remindersEnabled }) });
         if (!res.ok) { aErr(res); return; }
         showToast(res.data.enabled ? '🔔 Напоминания включены' : '🔕 Напоминания выключены'); renderAdmin();
+      });
+      $('anChan').addEventListener('click', async () => {
+        const res = await api('/api/admin/channel-test', { method: 'POST', body: abody() });
+        if (!res.ok) { aErr(res); return; }
+        const d = res.data;
+        showToast(d.verifyOk ? `✅ Бот видит канал ${d.channel}. Вы ${d.member ? 'подписаны' : 'не подписаны'}` : '⚠️ Бот не админ канала: ' + (d.error || ''));
       });
       $('anTest').addEventListener('click', async () => {
         const res = await api('/api/admin/reminders/test', { method: 'POST', body: abody() });
