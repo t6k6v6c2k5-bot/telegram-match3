@@ -160,7 +160,16 @@
     { name: 'Сладкий город', bg: ['#f8a5c2', '#b03a6f'], items: [['🍭', 'Леденцы', 4], ['🧁', 'Кондитерская', 5], ['🍩', 'Пончики', 5], ['🎠', 'Карусель', 6], ['🏯', 'Дворец', 6]], reward: { coins: 1500, gems: 30, title: 'gardener' } },
     { name: 'Звёздная обсерватория', bg: ['#6c3ce0', '#1c1044'], items: [['🔭', 'Телескоп', 5], ['🚀', 'Ракета', 5], ['🛸', 'НЛО', 6], ['🪐', 'Планета', 6], ['🌌', 'Галактика', 7]], reward: { coins: 2000, gems: 40, chest: 'legend' } }
   ];
-  const SLOT_POS = [[22, 62], [50, 44], [78, 64], [34, 84], [66, 84]];
+  const SLOT_POS = [[20, 60], [50, 50], [80, 60], [33, 84], [67, 84]];
+  // Оформление сцены сада для каждой области: небо (верх, низ), дальний холм, ближний холм, светило
+  const GARDEN_THEMES = [
+    { sky: ['#7fd0ff', '#d9f4ff'], far: '#8fdc7a', near: '#4fb85a', sun: '☀️', deco: ['🌼', '🌿', '🍄'] },
+    { sky: ['#ff9f6b', '#ffe3a3'], far: '#b5d96a', near: '#78b84a', sun: '🌅', deco: ['🌾', '🍃', '🌼'] },
+    { sky: ['#6fd0ff', '#caf1ff'], far: '#3fa9e0', near: '#f3d88f', sun: '☀️', deco: ['🦀', '🌊', '🐚'] },
+    { sky: ['#4fd0e0', '#c2f5ff'], far: '#2fa56b', near: '#48c47e', sun: '☀️', deco: ['🌺', '🌿', '🦋'] },
+    { sky: ['#ffb3d5', '#ffe8f3'], far: '#ff9cc8', near: '#e86aa5', sun: '🌈', deco: ['🍬', '🍒', '✨'] },
+    { sky: ['#140a33', '#43248f'], far: '#3b2a80', near: '#261a5c', sun: '🌙', deco: ['✨', '⭐', '💫'], night: true }
+  ];
   function gardenArea(i) {
     const base = GARDEN_AREAS[i % GARDEN_AREAS.length];
     const cycle = Math.floor(i / GARDEN_AREAS.length);
@@ -1400,11 +1409,26 @@
     const gi = state.garden.area, area = gardenArea(gi);
     const built = state.garden.built;
     const body = $('gardenBody');
+    const th = GARDEN_THEMES[gi % GARDEN_THEMES.length];
     const slots = area.items.map((it, i) => {
       const [x, y] = SLOT_POS[i % SLOT_POS.length];
       const isBuilt = built.includes(i);
-      return `<div class="g-slot ${isBuilt ? 'built' : 'todo'}${i === freshSlot ? ' fresh' : ''}" style="left:${x}%;top:${y}%"><span class="g-emo">${it[0]}</span>${isBuilt ? '' : `<span class="g-cost">⭐${it[2]}</span>`}</div>`;
+      const can = !isBuilt && state.starsBank >= it[2];
+      const cls = isBuilt ? 'built' : 'todo' + (can ? ' can' : '');
+      return `<button class="g-slot ${cls}${i === freshSlot ? ' fresh' : ''}" style="left:${x}%;top:${y}%;z-index:${Math.round(y)}" ${isBuilt ? 'disabled' : `data-build="${i}"`}>
+        <span class="g-shadow"></span><span class="g-emo">${it[0]}</span>${isBuilt ? '' : `<span class="g-cost">${can ? '🔨' : '⭐'}${it[2]}</span>`}</button>`;
     }).join('');
+    const deco = [[8, 90], [92, 88], [50, 95], [6, 70], [94, 72]].map(([x, y], k) => `<span class="g-deco" style="left:${x}%;top:${y}%">${th.deco[k % th.deco.length]}</span>`).join('');
+    const stars = th.night ? Array.from({ length: 14 }, (_, k) => `<i class="g-star" style="left:${(k * 37) % 100}%;top:${(k * 23) % 45}%;animation-delay:${(k % 5) * .4}s"></i>`).join('') : '';
+    const scene = `<div class="garden-scene${th.night ? ' night' : ''}" style="background:linear-gradient(180deg, ${th.sky[0]}, ${th.sky[1]})">
+        ${stars}<span class="garden-sun">${th.sun}</span><span class="garden-cloud c1">☁️</span><span class="garden-cloud c2">☁️</span>
+        <svg class="g-hills" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 52 Q18 36 36 48 T70 44 T100 46 V100 H0Z" fill="${th.far}"/>
+          <path d="M0 52 Q18 36 36 48 T70 44 T100 46" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+          <path d="M0 70 Q25 58 50 66 T100 64 V100 H0Z" fill="${th.near}"/>
+          <path d="M0 70 Q25 58 50 66 T100 64" fill="none" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>
+        </svg>${deco}${slots}
+      </div>`;
     const tasks = area.items.map((it, i) => {
       const isBuilt = built.includes(i);
       const can = state.starsBank >= it[2];
@@ -1416,9 +1440,7 @@
       <div class="garden-head"><div style="flex:1"><span class="g-num">Область ${gi + 1}</span><b>${esc(area.name)}</b>
         <div class="progress"><div class="progress-fill" style="width:${built.length / area.items.length * 100}%"></div></div></div>
         <span class="chip">${built.length}/${area.items.length}</span></div>
-      <div class="garden-scene" style="background:linear-gradient(180deg, ${area.bg[0]}, ${area.bg[1]})">
-        <span class="garden-sun">☀️</span><span class="garden-cloud">☁️</span>${slots}
-      </div>
+      ${scene}
       <div class="garden-reward">🎁 <span>Награда за область: <b>${esc(rewardText(area.reward))}</b></span></div>
       <p class="section-label">Постройки</p>${tasks}
       <p class="muted tiny" style="margin-top:12px">⭐ Звёзды дают за уровни: чем меньше ходов, тем больше звёзд. Можно перепроходить уровни ради ⭐⭐⭐!</p>
