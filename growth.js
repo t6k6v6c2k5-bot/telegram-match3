@@ -246,11 +246,33 @@ module.exports = function attachGrowth(ctx) {
   app.get('/share/:file', (req, res) => {
     const f = String(req.params.file);
     if (!/^[a-f0-9]{20}\.jpg$/.test(f)) return res.status(404).end();
-    res.setHeader('Cache-Control', 'public, max-age=604800');
-    res.sendFile(path.join(SHARE_DIR, f), (err) => { if (err) res.status(404).end(); });
+    fs.readFile(path.join(SHARE_DIR, f), (err, buf) => {
+      if (err) { res.statusCode = 404; return res.end(); }
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Content-Length', buf.length);
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      res.end(buf);
+    });
   });
+  const TG_BASE = process.env.TG_API_BASE || 'https://api.telegram.org';
+  // Картинку загружаем в Telegram через бота (в чат самого игрока, без звука) и сразу удаляем
+  // это служебное сообщение. Так Telegram хранит файл у себя — не нужно скачивать его по ссылке.
+  async function uploadPhoto(uid, buf) {
+    const fd = new FormData();
+    fd.append('chat_id', String(uid));
+    fd.append('disable_notification', 'true');
+    fd.append('photo', new Blob([buf], { type: 'image/jpeg' }), 'card.jpg');
+    const r = await fetch(`${TG_BASE}/bot${BOT_TOKEN}/sendPhoto`, { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.description || 'sendPhoto error');
+    const sizes = j.result.photo || [];
+    const fileId = sizes.length ? sizes[sizes.length - 1].file_id : null;
+    tgCall('deleteMessage', { chat_id: Number(uid) || String(uid), message_id: j.result.message_id }).catch(() => {});
+    if (!fileId) throw new Error('нет file_id');
+    return fileId;
+  }
   async function tgCall(method, params) {
-    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) });
+    const r = await fetch(`${TG_BASE}/bot${BOT_TOKEN}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) });
     const j = await r.json();
     if (!j.ok) throw new Error(j.description || 'Telegram API error');
     return j.result;
@@ -272,12 +294,19 @@ module.exports = function attachGrowth(ctx) {
     const caption = String(req.body.caption || '').slice(0, 900);
     const d = dayKey(); bump(an.events[d] || (an.events[d] = {}), 'share_prepared'); saveAn();
     if (!BOT_TOKEN) return res.json({ success: true, url, refLink, dev: true });
+    if (req.body.forStory) return res.json({ success: true, url, refLink }); // для истории нужна только ссылка
+    const markup = { inline_keyboard: [[{ text: '🎮 Играть в Fruit Blitz', url: refLink }]] };
+    const opts = { allow_user_chats: true, allow_bot_chats: true, allow_group_chats: true, allow_channel_chats: true };
+    let result;
     try {
-      const pm = await tgCall('savePreparedInlineMessage', {
-        user_id: Number(p.id),
-        result: { type: 'photo', id, photo_url: url, thumbnail_url: url, caption, reply_markup: { inline_keyboard: [[{ text: '🎮 Играть в Fruit Blitz', url: refLink }]] } },
-        allow_user_chats: true, allow_bot_chats: true, allow_group_chats: true, allow_channel_chats: true
-      });
+      const fileId = await uploadPhoto(p.id, buf);
+      result = { type: 'photo', id, photo_file_id: fileId, caption, reply_markup: markup };
+    } catch (e) {
+      console.error('Загрузка карточки в Telegram:', e.message, '— отдаю ссылкой');
+      result = { type: 'photo', id, photo_url: url, thumbnail_url: url, caption, reply_markup: markup };
+    }
+    try {
+      const pm = await tgCall('savePreparedInlineMessage', Object.assign({ user_id: Number(p.id), result }, opts));
       res.json({ success: true, url, refLink, preparedId: pm.id });
     } catch (e) {
       console.error('savePreparedInlineMessage:', e.message);
@@ -295,5 +324,5 @@ module.exports = function attachGrowth(ctx) {
   cleanShare();
 
   console.log(`   Рост: аналитика с ${dayKey(an.since)}, напоминания ${settings.remindersEnabled !== false ? 'вкл' : 'выкл'}`);
-  return { touch, ingest, normNotify, flush: () => writeJSON(AN_FILE, an), _tick: reminderTick };
+  return { touch, ingest, normNotify, flush: () => writeJSON(AN_FILE, an), _tick: reminderTick, _upload: uploadPhoto };
 };
