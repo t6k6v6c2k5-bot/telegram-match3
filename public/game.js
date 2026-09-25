@@ -2002,8 +2002,8 @@
     openModal('modalShare');
     track('share_open', { k: kind });
   }
-  function uploadShare(image, caption) {
-    return api('/api/share/prepare', { method: 'POST', body: { telegram_id: playerId, image, caption } }).then((r) => (r.ok && r.data ? r.data : null));
+  function uploadShare(image, caption, forStory) {
+    return api('/api/share/prepare', { method: 'POST', body: { telegram_id: playerId, image, caption, forStory: !!forStory } }).then((r) => (r.ok && r.data ? r.data : null));
   }
   $('shareChat').addEventListener('click', async () => {
     const s = shareCtx; if (!s) return;
@@ -2019,7 +2019,7 @@
   $('shareStory').addEventListener('click', async () => {
     const s = shareCtx; if (!s) return;
     const b = $('shareStory'); b.disabled = true; b.textContent = '⏳';
-    if (!s.story) s.story = await uploadShare(drawShareCard(s.o, 1080, 1920).toDataURL('image/jpeg', 0.86), '');
+    if (!s.story) s.story = await uploadShare(drawShareCard(s.o, 1080, 1920).toDataURL('image/jpeg', 0.86), '', true);
     b.disabled = false; b.textContent = '📸 В историю';
     if (!s.story) { showToast('⚠️ Не удалось подготовить картинку'); return; }
     try { tg.shareToStory(s.story.url, { text: (s.o.text + ' ' + (s.story.refLink || '')).slice(0, 200) }); track('share', { k: s.kind + '_story' }); } catch (e) { showToast('⚠️ Истории недоступны в этой версии Telegram'); }
