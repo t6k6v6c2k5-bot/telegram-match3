@@ -2640,6 +2640,74 @@
         const res = await api('/api/admin/reminders/test', { method: 'POST', body: abody() });
         showToast(res.ok && res.data.success ? '✅ Отправлено — проверьте чат с ботом' : '⚠️ ' + ((res.data && res.data.error) || 'Ошибка'));
       });
+    } else if (adminTab === 'news') {
+      const r = await api('/api/admin/news?' + aqs());
+      if (!r.ok) { aErr(r); body.innerHTML = '<p class="empty">Нет доступа</p>'; return; }
+      const d = r.data;
+      const MODES = [['preview', '👀 Сначала мне'], ['auto', '⚡ Сразу в канал'], ['off', '⏸ Выкл']];
+      const dt = (t) => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      body.innerHTML = `<p class="muted tiny">Канал: <b>${esc(d.channel)}</b>. Бот должен быть его администратором с правом «Публикация сообщений».</p>
+        <button class="btn btn-ghost" id="nwCheck">🔍 Проверить права бота</button>
+        <p class="section-label">🚀 После каждого обновления</p>
+        <div class="nw-modes">${MODES.map(([k, n]) => `<button class="tab ${d.mode === k ? 'active' : ''}" data-nwmode="${k}">${n}</button>`).join('')}</div>
+        <p class="muted tiny">${d.mode === 'preview' ? 'После деплоя бот пришлёт вам готовый пост с кнопками «Опубликовать» / «Пропустить».' : d.mode === 'auto' ? 'После деплоя пост о новом обновлении сразу уйдёт в канал.' : 'Автоматические посты выключены — публикуйте вручную ниже.'}</p>
+        <p class="section-label">📋 Обновления (changelog.js)</p>
+        ${d.releases.map((x) => `<div class="nw-rel"><div class="nw-rel-top"><span class="nw-emo">${esc(x.emoji || '🎉')}</span><div class="ap-info"><b>${esc(x.version ? x.version + ' · ' : '')}${esc(x.title)}</b>
+          <small>${x.posted ? '✅ опубликовано ' + dt(x.posted.at) : x.skipped ? '🚫 пропущено' : '⏳ не опубликовано'}${x.banner ? ' · 🖼 баннер' : ''}</small></div></div>
+          <div class="btn-row"><button class="btn btn-ghost btn-small" data-nwprev="${esc(x.id)}">👀 Мне</button>${x.posted ? '' : `<button class="btn btn-primary btn-small" data-nwpub="${esc(x.id)}">📢 В канал</button>`}</div></div>`).join('') || '<p class="muted tiny">changelog.js пуст</p>'}
+        <p class="section-label">✏️ Свой пост</p>
+        <textarea class="a-textarea nw-text" id="nwText" placeholder="Текст поста. Можно <b>жирный</b> и <i>курсив</i>.&#10;&#10;Например: 🎉 Выходные x2 монет!"></textarea>
+        <div class="nw-img"><label class="btn btn-ghost btn-small" for="nwFile">🖼 Картинка</label><input type="file" id="nwFile" accept="image/*" hidden><span class="muted tiny" id="nwImgInfo">без картинки</span><img id="nwImgPrev" class="hidden" alt=""></div>
+        <label class="muted tiny nw-chk"><input type="checkbox" id="nwBtn" checked> Кнопка «🎮 Играть» под постом</label>
+        <div class="btn-row"><button class="btn btn-ghost" id="nwPrev">👀 Себе</button><button class="btn btn-primary" id="nwPub">📢 В канал</button></div>
+        ${d.history.length ? `<p class="section-label">🕘 Последние посты</p>${d.history.slice(0, 8).map((h) => `<div class="a-player"><div class="ap-info"><b>${h.kind === 'release' ? '🚀 ' : '✏️ '}${esc(h.title)}</b><small>${dt(h.at)}</small></div></div>`).join('')}` : ''}`;
+      let nwImg = null;
+      $('nwCheck').addEventListener('click', async () => {
+        const res = await api('/api/admin/news/check', { method: 'POST', body: abody() });
+        if (!res.ok) { aErr(res); return; }
+        showToast(res.data.ok ? '✅ Бот может публиковать в канал' : '⚠️ ' + (res.data.error || 'Нет доступа к каналу'));
+      });
+      qsa('[data-nwmode]', body).forEach((b) => b.addEventListener('click', async () => {
+        const res = await api('/api/admin/news/mode', { method: 'POST', body: abody({ mode: b.dataset.nwmode }) });
+        if (!res.ok) { aErr(res); return; }
+        renderAdmin();
+      }));
+      const relAction = async (id, preview) => {
+        if (!preview && !(await confirmBox('Опубликовать в канал?', 'Пост увидят все подписчики.', 'Опубликовать'))) return;
+        const res = await api('/api/admin/news/release', { method: 'POST', body: abody({ id, preview }) });
+        if (!res.ok) { aErr(res); return; }
+        showToast(preview ? '👀 Предпросмотр отправлен вам в бота' : '✅ Опубликовано!');
+        if (!preview) renderAdmin();
+      };
+      qsa('[data-nwprev]', body).forEach((b) => b.addEventListener('click', () => relAction(b.dataset.nwprev, true)));
+      qsa('[data-nwpub]', body).forEach((b) => b.addEventListener('click', () => relAction(b.dataset.nwpub, false)));
+      $('nwFile').addEventListener('change', (ev) => {
+        const f = ev.target.files && ev.target.files[0];
+        if (!f) return;
+        const img = new Image();
+        img.onload = () => {
+          const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+          const cv = document.createElement('canvas'); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+          nwImg = cv.toDataURL('image/jpeg', 0.88);
+          $('nwImgPrev').src = nwImg; $('nwImgPrev').classList.remove('hidden');
+          $('nwImgInfo').textContent = `${cv.width}×${cv.height} · нажмите на превью, чтобы убрать`;
+          URL.revokeObjectURL(img.src);
+        };
+        img.src = URL.createObjectURL(f);
+      });
+      $('nwImgPrev').addEventListener('click', () => { nwImg = null; $('nwImgPrev').classList.add('hidden'); $('nwImgInfo').textContent = 'без картинки'; $('nwFile').value = ''; });
+      const sendPost = async (preview) => {
+        const text = $('nwText').value.trim();
+        if (!text) { showToast('Введите текст поста'); return; }
+        if (!preview && !(await confirmBox('Опубликовать в канал?', 'Пост увидят все подписчики.', 'Опубликовать'))) return;
+        const res = await api('/api/admin/news/post', { method: 'POST', body: abody({ text, image: nwImg, withButton: $('nwBtn').checked, preview }) });
+        if (!res.ok) { aErr(res); return; }
+        showToast(preview ? '👀 Предпросмотр отправлен вам в бота' : '✅ Пост опубликован!');
+        if (!preview) { $('nwText').value = ''; renderAdmin(); }
+      };
+      $('nwPrev').addEventListener('click', () => sendPost(true));
+      $('nwPub').addEventListener('click', () => sendPost(false));
     } else if (adminTab === 'eco') {
       if (MK()) MK().renderAdminEco(body);
     } else if (adminTab === 'global') {

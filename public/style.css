@@ -808,3 +808,16 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .channel-reward { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0 4px; padding: 10px; border-radius: 14px; background: rgba(255,210,63,.15); border: 1px solid rgba(255,210,63,.4); font-size: 14px; }
 .channel-reward b { color: var(--gold); font-size: 16px; }
 .channel-deal { background: linear-gradient(135deg, rgba(79,163,255,.3), rgba(79,227,255,.12)); border-color: rgba(79,227,255,.5); margin-bottom: 8px; }
+
+/* ---------------- Админка: посты в канал ---------------- */
+.nw-modes { display: flex; gap: 6px; flex-wrap: wrap; }
+.nw-modes .tab { font-size: 12px; padding: 8px 10px; }
+.nw-rel { padding: 10px; border-radius: 14px; background: rgba(0,0,0,.25); margin-top: 8px; }
+.nw-rel-top { display: flex; align-items: center; gap: 10px; }
+.nw-emo { font-size: 26px; }
+.nw-rel .btn-row .btn { margin-top: 8px; }
+.nw-text { min-height: 130px; }
+.nw-img { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.nw-img .btn { margin: 0; }
+.nw-img img { width: 100%; border-radius: 12px; margin-top: 4px; }
+.nw-chk { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
