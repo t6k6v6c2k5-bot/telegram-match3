@@ -2,7 +2,8 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#1a102f" />
 <title>Fruit Blitz — Три в ряд</title>
 <link rel="stylesheet" href="style.css" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -10,355 +11,293 @@
 <body>
 <div id="app">
 
-  <!-- ===================== ШАПКА РЕСУРСОВ (везде кроме игры) ===================== -->
-  <header id="resourceBar" class="resource-bar">
-    <div class="res-pill" title="Монеты">🪙<span id="coinsValue">0</span></div>
-    <div class="res-pill" title="Кристаллы">💎<span id="gemsValue">0</span></div>
-    <div class="res-pill" title="Жизни">❤️<span id="livesValue">5</span></div>
-    <div id="livesTimer" class="lives-timer-badge"></div>
-    <button id="soundToggleBtn" class="icon-btn" title="Звук">🔊</button>
+  <!-- Живой фон приложения -->
+  <div class="app-bg" id="appBg" aria-hidden="true"></div>
+
+  <!-- ============ ВЕРХНЯЯ ПАНЕЛЬ РЕСУРСОВ ============ -->
+  <header id="topHud" class="top-hud">
+    <button class="hud-pill" id="hudCoins"><span class="hud-ico">🪙</span><b id="coinsValue">0</b><span class="hud-plus">+</span></button>
+    <button class="hud-pill" id="hudGems"><span class="hud-ico">💎</span><b id="gemsValue">0</b><span class="hud-plus">+</span></button>
+    <button class="hud-pill hud-lives" id="hudLives"><span class="hud-ico">❤️</span><span class="lives-col"><b id="livesValue">10</b><small id="livesTimer"></small></span></button>
+    <button class="hud-round" id="btnSettings" aria-label="Настройки">⚙️</button>
   </header>
 
-  <!-- ===================== ГЛАВНОЕ МЕНЮ ===================== -->
-  <section id="screenMenu" class="screen active">
-    <div class="menu-bg-fruits" aria-hidden="true">
-      <span style="--fd:14s;--fx:6%;--fdelay:0s">🍎</span>
-      <span style="--fd:18s;--fx:22%;--fdelay:2s">🍇</span>
-      <span style="--fd:16s;--fx:40%;--fdelay:4s">🍓</span>
-      <span style="--fd:20s;--fx:58%;--fdelay:1s">🍊</span>
-      <span style="--fd:15s;--fx:76%;--fdelay:3s">🫐</span>
-      <span style="--fd:19s;--fx:90%;--fdelay:5s">🍌</span>
-    </div>
-    <div class="player-badge">
-      <div id="playerAvatar" class="player-avatar">🙂</div>
-      <div class="player-info">
-        <span class="player-hello">Привет,</span>
-        <span id="playerName" class="player-name">Игрок</span>
-        <span id="playerTitle" class="player-title"></span>
-      </div>
-    </div>
+  <main class="screens">
 
-    <div class="logo-wrap">
-      <h1 class="game-logo"><span>FRUIT</span><span class="logo-accent">BLITZ</span></h1>
-      <p class="logo-sub">Три в ряд · Сочно · Азартно</p>
-    </div>
-
-    <div class="menu-buttons">
-      <button class="big-btn primary-glow" id="btnPlay">▶ Играть</button>
-      <button class="big-btn" id="btnShop">🛍 Магазин</button>
-      <button class="big-btn" id="btnQuests">📋 Задания</button>
-      <button class="big-btn" id="btnWheel">🎡 Колесо Фортуны</button>
-      <button class="big-btn" id="btnLeaderboard">🏆 Таблица лидеров</button>
-      <button class="big-btn" id="btnAchievements">🎖 Достижения</button>
-    </div>
-  </section>
-
-  <!-- ===================== КАРТА УРОВНЕЙ ===================== -->
-  <section id="screenLevels" class="screen">
-    <div class="screen-header">
-      <button class="back-btn" data-back="screenMenu">←</button>
-      <h2>Карта уровней</h2>
-    </div>
-    <div id="levelsGrid" class="levels-grid"></div>
-  </section>
-
-  <!-- ===================== ИГРОВОЙ ЭКРАН ===================== -->
-  <section id="screenGame" class="screen">
-    <div class="game-topbar">
-      <button class="icon-btn" id="btnPause">⏸</button>
-      <div class="goal-panel" id="goalPanel"></div>
-      <div class="counter-pill" id="movesPill" title="Ходы">👣<span id="movesValue">20</span></div>
-      <div class="counter-pill hidden" id="timePill" title="Время">⏱<span id="timeValue">60</span></div>
-      <div class="counter-pill" title="Очки">⭐<span id="scoreValue">0</span></div>
-      <button id="soundToggleBtnGame" class="icon-btn" title="Звук">🔊</button>
-    </div>
-
-    <div class="board-wrap">
-      <div id="board" class="board"></div>
-      <canvas id="particleCanvas" class="particle-canvas"></canvas>
-    </div>
-
-    <div id="comboToast" class="combo-toast hidden"></div>
-    <div id="flyCoinsLayer" class="fly-layer"></div>
-
-    <div class="booster-bar">
-      <button class="booster-btn" data-booster="hammer">
-        <span class="booster-icon">🔨</span><span class="booster-count" id="countHammer">0</span>
-      </button>
-      <button class="booster-btn" data-booster="shuffle">
-        <span class="booster-icon">🔀</span><span class="booster-count" id="countShuffle">0</span>
-      </button>
-      <button class="booster-btn" data-booster="rocketBoost">
-        <span class="booster-icon">🚀</span><span class="booster-count" id="countRocketBoost">0</span>
-      </button>
-    </div>
-  </section>
-
-  <!-- ===================== МОДАЛКА: МАГАЗИН (ВКЛАДКИ) ===================== -->
-  <div id="modalShop" class="overlay hidden">
-    <div class="overlay-card wide-card">
-      <button class="modal-x" data-close="modalShop">❌</button>
-      <h2>Магазин</h2>
-      <div class="tab-bar">
-        <button class="tab-btn active" data-tab="tabBoosters">Бустеры</button>
-        <button class="tab-btn" data-tab="tabSkins">Скины</button>
-        <button class="tab-btn" data-tab="tabFrames">Рамки</button>
-      </div>
-
-      <div id="tabBoosters" class="tab-content active">
-        <div class="shop-section">
-          <h3>Бустеры и жизни</h3>
-          <div class="shop-grid">
-            <div class="shop-card">
-              <div class="shop-icon">❤️</div>
-              <div class="shop-name">Полные жизни</div>
-              <div class="shop-desc">5 из 5 жизней</div>
-              <button class="shop-buy-btn" data-shop-buy="lives" data-cost="100" data-currency="coins">100 🪙</button>
-              <button class="shop-buy-btn alt" data-shop-buy="lives" data-cost="5" data-currency="gems">5 💎</button>
-            </div>
-            <div class="shop-card">
-              <div class="shop-icon">🔨</div>
-              <div class="shop-name">Молотки ×3</div>
-              <div class="shop-desc">Разбивают любую фишку</div>
-              <button class="shop-buy-btn" data-shop-buy="hammer" data-cost="150" data-currency="coins">150 🪙</button>
-            </div>
-            <div class="shop-card">
-              <div class="shop-icon">🔀</div>
-              <div class="shop-name">Перемешки ×3</div>
-              <div class="shop-desc">Перетасовывают поле</div>
-              <button class="shop-buy-btn" data-shop-buy="shuffle" data-cost="130" data-currency="coins">130 🪙</button>
-            </div>
-            <div class="shop-card">
-              <div class="shop-icon">🚀</div>
-              <div class="shop-name">Ракеты ×2</div>
-              <div class="shop-desc">Взрывают ряд и колонку</div>
-              <button class="shop-buy-btn" data-shop-buy="rocketBoost" data-cost="180" data-currency="coins">180 🪙</button>
-            </div>
-            <div class="shop-card">
-              <div class="shop-icon">➕5</div>
-              <div class="shop-name">+5 ходов</div>
-              <div class="shop-desc">На следующий уровень</div>
-              <button class="shop-buy-btn" data-shop-buy="moves" data-cost="200" data-currency="coins">200 🪙</button>
-            </div>
-            <div class="shop-card">
-              <div class="shop-icon">💎</div>
-              <div class="shop-name">+50 кристаллов</div>
-              <div class="shop-desc">Бонусный набор</div>
-              <button class="shop-buy-btn" data-shop-buy="gems50" data-cost="300" data-currency="coins">300 🪙</button>
-            </div>
+    <!-- ============ ГЛАВНАЯ ============ -->
+    <section id="screenHome" class="screen active">
+      <div class="screen-scroll home-scroll">
+        <div class="profile-card" id="profileCard">
+          <div class="avatar" id="homeAvatar">🙂</div>
+          <div class="profile-info">
+            <b id="homeName">Игрок</b>
+            <span id="homeTitle" class="profile-title">Новичок</span>
+          </div>
+          <div class="profile-stats">
+            <span class="chip">🚩 <b id="homeLevel">1</b></span>
+            <span class="chip">⭐ <b id="homeStars">0</b></span>
           </div>
         </div>
-      </div>
 
-      <div id="tabSkins" class="tab-content">
-        <div class="shop-section">
-          <h3>Скины фишек</h3>
-          <div class="shop-grid skins-grid" id="skinsGrid"></div>
+        <div class="home-logo" aria-label="Fruit Blitz">
+          <span class="logo-fruit f1">🍓</span>
+          <h1><span class="lw1">FRUIT</span><span class="lw2">BLITZ</span></h1>
+          <span class="logo-fruit f2">🍊</span>
         </div>
-      </div>
 
-      <div id="tabFrames" class="tab-content">
-        <div class="shop-section">
-          <h3>Аватарки, рамки и звания</h3>
-          <div class="shop-grid skins-grid" id="framesGrid"></div>
-        </div>
-      </div>
-
-      <button class="secondary-btn" data-close="modalShop">Закрыть</button>
-    </div>
-  </div>
-
-  <!-- ===================== МОДАЛКА: ЕЖЕДНЕВНЫЕ ЗАДАНИЯ ===================== -->
-  <div id="modalQuests" class="overlay hidden">
-    <div class="overlay-card wide-card">
-      <button class="modal-x" data-close="modalQuests">❌</button>
-      <h2>Ежедневные задания 🎁</h2>
-      <p class="subtitle">Обновляются каждый день</p>
-      <div id="questsList" class="quests-list"></div>
-      <button class="secondary-btn" data-close="modalQuests">Закрыть</button>
-    </div>
-  </div>
-
-  <!-- ===================== МОДАЛКА: ДОСТИЖЕНИЯ ===================== -->
-  <div id="modalAchievements" class="overlay hidden">
-    <div class="overlay-card wide-card">
-      <button class="modal-x" data-close="modalAchievements">❌</button>
-      <h2>Достижения</h2>
-      <div id="achievementsList" class="achievements-list"></div>
-      <button class="secondary-btn" data-close="modalAchievements">Закрыть</button>
-    </div>
-  </div>
-
-  <!-- ===================== МОДАЛКА: ТАБЛИЦА ЛИДЕРОВ ===================== -->
-  <div id="modalLeaderboard" class="overlay hidden">
-    <div class="overlay-card wide-card">
-      <button class="modal-x" data-close="modalLeaderboard">❌</button>
-      <h2>Таблица лидеров</h2>
-      <ol id="leaderboardList" class="leaderboard-list"></ol>
-      <button class="secondary-btn" data-close="modalLeaderboard">Закрыть</button>
-    </div>
-  </div>
-
-  <!-- ===================== МОДАЛКА: КОЛЕСО ФОРТУНЫ ===================== -->
-  <div id="modalWheel" class="overlay hidden">
-    <div class="overlay-card">
-      <button class="modal-x" data-close="modalWheel">❌</button>
-      <h2>Колесо Фортуны</h2>
-      <p class="subtitle">Крути раз в 24 часа и получай награды</p>
-      <div class="wheel-outer">
-        <div class="wheel-pointer">▼</div>
-        <div id="wheelDial" class="wheel-dial"></div>
-      </div>
-      <button class="primary-btn" id="btnSpinWheel">Крутить</button>
-      <button class="secondary-btn" data-close="modalWheel">Закрыть</button>
-    </div>
-  </div>
-
-  <!-- ===================== ПЛАВАЮЩАЯ КНОПКА АДМИНКИ ===================== -->
-  <button id="floatingAdminBtn" class="floating-admin-btn hidden" title="Админ-панель">⚙️</button>
-
-  <!-- ===================== ПРОДВИНУТАЯ АДМИН-ПАНЕЛЬ ===================== -->
-  <div id="modalAdminPro" class="overlay hidden">
-    <div class="overlay-card wide-card admin-card">
-      <button class="modal-x" data-close="modalAdminPro">❌</button>
-      <h2>⚙️ Админ-панель</h2>
-      <div class="tab-bar">
-        <button class="tab-btn active" data-tab="adminTabStats">Статистика</button>
-        <button class="tab-btn" data-tab="adminTabSearch">Игрок</button>
-        <button class="tab-btn" data-tab="adminTabCheats">Читы</button>
-        <button class="tab-btn" data-tab="adminTabGlobal">Настройки</button>
-      </div>
-
-      <!-- Вкладка: Статистика -->
-      <div id="adminTabStats" class="tab-content active">
-        <div id="adminStatsBox" class="admin-stats-box">Загрузка...</div>
-        <button class="secondary-btn" id="btnAdminRefreshStats">🔄 Обновить</button>
-        <div class="admin-broadcast-block">
-          <h3>📢 Рассылка</h3>
-          <textarea id="broadcastText" class="admin-textarea" placeholder="Текст сообщения (поддерживается HTML)"></textarea>
-          <input id="broadcastBtnText" class="admin-input" placeholder="Текст кнопки (необязательно)" value="🎮 Играть" />
-          <button class="primary-btn" id="btnSendBroadcast">Отправить всем</button>
-          <div id="broadcastProgressWrap" class="broadcast-progress-wrap hidden">
-            <div class="quest-progress-bar"><div id="broadcastProgressFill" class="quest-progress-fill" style="width:0%"></div></div>
-            <div id="broadcastProgressLabel" class="admin-small-label">0 / 0</div>
+        <div class="chapter-card" id="chapterCard">
+          <div class="chapter-emoji" id="chapterEmoji">🍓</div>
+          <div class="chapter-info">
+            <small id="chapterLabel">Глава 1</small>
+            <b id="chapterName">Клубничная Долина</b>
+            <div class="progress"><div class="progress-fill" id="chapterFill"></div></div>
           </div>
+          <span class="chapter-count" id="chapterCount">0/10</span>
         </div>
-      </div>
 
-      <!-- Вкладка: Поиск игрока -->
-      <div id="adminTabSearch" class="tab-content">
-        <div class="admin-search-row">
-          <input id="adminSearchInput" class="admin-input" placeholder="Telegram ID или @username" />
-          <button class="primary-btn admin-search-btn" id="btnAdminSearch">🔍</button>
+        <button class="play-btn" id="btnHomePlay">
+          <span class="play-shine"></span>
+          <span class="play-top">▶ ИГРАТЬ</span>
+          <span class="play-sub" id="homePlayLevel">Уровень 1</span>
+        </button>
+
+        <div class="home-grid">
+          <button class="home-tile" id="tileMap"><span class="tile-ico">🗺️</span><b>Карта</b><small>Все уровни</small></button>
+          <button class="home-tile" id="tileWheel"><span class="tile-ico spin-slow">🎡</span><b>Колесо</b><small id="wheelHint">Бесплатно!</small><i class="dot hidden" id="dotWheel"></i></button>
+          <button class="home-tile" id="tileDaily"><span class="tile-ico">📅</span><b>Бонус дня</b><small id="dailyHint">Забери!</small><i class="dot hidden" id="dotDaily"></i></button>
+          <button class="home-tile" id="tileGift"><span class="tile-ico">🎁</span><b>Подарок</b><small id="giftHint">Готов!</small><i class="dot hidden" id="dotGift"></i></button>
         </div>
-        <div id="adminSearchResults" class="admin-search-results"></div>
-        <div id="adminPlayerDetail" class="admin-player-detail hidden"></div>
 
-        <h3 class="admin-list-title">Все зарегистрированные игроки</h3>
-        <div id="adminAllPlayersList" class="admin-all-players-list"></div>
+        <button class="teaser garden-teaser" id="gardenTeaser">
+          <span class="teaser-ico" id="gardenTeaserIco">🌱</span>
+          <span class="teaser-text"><b id="gardenTeaserTitle">Сад</b><small id="gardenTeaserSub">Стройте за звёзды</small>
+            <span class="progress small"><span class="progress-fill" id="gardenTeaserFill"></span></span></span>
+          <span class="teaser-cta">Строить ›</span>
+        </button>
+        <button class="teaser" id="questTeaser">
+          <span class="teaser-ico">📋</span>
+          <span class="teaser-text"><b>Задания дня</b><small id="questTeaserSub">0/3 выполнено</small></span>
+          <span class="teaser-cta">›</span>
+        </button>
       </div>
+    </section>
 
-      <!-- Вкладка: Быстрые читы (для своего аккаунта) -->
-      <div id="adminTabCheats" class="tab-content">
-        <p class="subtitle">Применяются к вашему собственному аккаунту</p>
-        <button class="primary-btn" id="btnAdminCoins">+10 000 Монет 🪙</button>
-        <button class="primary-btn" id="btnAdminGems">+500 Кристаллов 💎</button>
-        <button class="primary-btn" id="btnAdminUnlock">Открыть все уровни 🔓</button>
-        <button class="primary-btn" id="btnAdminInfLives">Бесконечные жизни ❤️</button>
-        <button class="secondary-btn" id="btnAdminReset">Сбросить свой прогресс 🔄</button>
+    <!-- ============ КАРТА УРОВНЕЙ ============ -->
+    <section id="screenMap" class="screen">
+      <div class="screen-head">
+        <button class="back-btn" data-go="screenHome" aria-label="Назад">←</button>
+        <h2>Карта уровней</h2>
+        <span class="chip">⭐ <b id="mapStars">0</b></span>
       </div>
+      <div class="screen-scroll map-scroll" id="mapScroll"><div id="mapTrack" class="map-track"></div></div>
+    </section>
 
-      <!-- Вкладка: Глобальные настройки -->
-      <div id="adminTabGlobal" class="tab-content">
-        <div class="admin-toggle-row">
-          <div><b>🛠 Режим техработ</b><br /><span class="admin-small-label">Блокирует вход всем, кроме админов</span></div>
-          <button class="secondary-btn admin-toggle-btn" id="btnToggleMaintenance">Выкл</button>
+    <!-- ============ ИГРА ============ -->
+    <section id="screenGame" class="screen">
+      <div class="game-top">
+        <button class="round-btn" id="btnPause" aria-label="Пауза">⏸</button>
+        <div class="game-level"><small>УРОВЕНЬ</small><b id="gameLevelNum">1</b></div>
+        <div class="moves-box">
+          <div class="moves-row"><small>ХОДЫ</small><b id="movesValue">0</b></div>
+          <div class="star-meter">
+            <div class="star-meter-fill" id="starMeterFill"></div>
+            <span class="sm-star" id="smStar1">★</span><span class="sm-star" id="smStar2">★</span><span class="sm-star" id="smStar3">★</span>
+          </div>
+          <small class="star-hint" id="starHint"></small>
         </div>
-        <div class="admin-toggle-row">
-          <div><b>🎉 Ивент x2 награды</b><br /><span class="admin-small-label">Удваивает монеты за прохождение</span></div>
-          <button class="secondary-btn admin-toggle-btn" id="btnToggleDouble">Выкл</button>
-        </div>
+        <div class="game-score"><small>ОЧКИ</small><b id="scoreValue">0</b></div>
       </div>
+      <div class="goals-bar" id="goalsBar"></div>
+      <div class="board-area" id="boardArea">
+        <div id="board" class="board"></div>
+      </div>
+      <div class="booster-bar" id="boosterBar"></div>
+      <div id="gameBanner" class="game-banner"></div>
+    </section>
 
-      <button class="secondary-btn" data-close="modalAdminPro">Закрыть</button>
+    <!-- ============ МАГАЗИН ============ -->
+    <section id="screenShop" class="screen">
+      <div class="screen-head"><h2>🛍 Магазин</h2></div>
+      <div class="tabs" id="shopTabs"></div>
+      <div class="screen-scroll" id="shopBody"></div>
+    </section>
+
+    <!-- ============ САД ============ -->
+    <section id="screenGarden" class="screen">
+      <div class="screen-head"><h2>🌳 Волшебный Сад</h2><span class="chip">⭐ <b id="gardenStars">0</b></span></div>
+      <div class="screen-scroll" id="gardenBody"></div>
+    </section>
+
+    <!-- ============ ЗАДАНИЯ ============ -->
+    <section id="screenQuests" class="screen">
+      <div class="screen-head"><h2>📋 Задания</h2></div>
+      <div class="tabs" id="questTabs">
+        <button class="tab active" data-qtab="daily">Ежедневные</button>
+        <button class="tab" data-qtab="login">Вход 7 дней</button>
+        <button class="tab" data-qtab="ach">Достижения</button>
+      </div>
+      <div class="screen-scroll" id="questBody"></div>
+    </section>
+
+    <!-- ============ РЕЙТИНГ ============ -->
+    <section id="screenLeaders" class="screen">
+      <div class="screen-head"><h2>🏆 Рейтинг</h2></div>
+      <div class="screen-scroll" id="leadersBody"></div>
+    </section>
+  </main>
+
+  <!-- ============ НИЖНЯЯ НАВИГАЦИЯ ============ -->
+  <nav id="bottomNav" class="bottom-nav">
+    <button class="nav-btn" data-nav="screenShop"><span>🛍</span><small>Магазин</small><i class="dot hidden" id="dotShop"></i></button>
+    <button class="nav-btn" data-nav="screenGarden"><span>🌳</span><small>Сад</small><i class="dot hidden" id="dotGarden"></i></button>
+    <button class="nav-btn nav-home active" data-nav="screenHome"><span>🏠</span><small>Главная</small></button>
+    <button class="nav-btn" data-nav="screenQuests"><span>📋</span><small>Задания</small><i class="dot hidden" id="dotQuests"></i></button>
+    <button class="nav-btn" data-nav="screenLeaders"><span>🏆</span><small>Рейтинг</small></button>
+  </nav>
+
+  <button id="adminFab" class="admin-fab hidden" aria-label="Админка">⚙️</button>
+
+  <!-- ============ МОДАЛКИ ============ -->
+  <div id="modalIntro" class="overlay hidden">
+    <div class="card intro-card">
+      <button class="modal-x" data-close="modalIntro">✕</button>
+      <div class="intro-badge" id="introBadge">1</div>
+      <h2 id="introTitle">Уровень 1</h2>
+      <p class="muted" id="introSub">Глава 1</p>
+      <div class="intro-goals" id="introGoals"></div>
+      <div class="intro-new hidden" id="introNew"></div>
+      <div class="intro-stars" id="introStars"></div>
+      <p class="section-label">Стартовые бустеры</p>
+      <div class="pre-boosters" id="preBoosters"></div>
+      <button class="btn btn-primary btn-big" id="btnIntroPlay">▶ Играть</button>
     </div>
   </div>
 
-  <!-- ===================== ЭКРАН ТЕХНИЧЕСКИХ РАБОТ ===================== -->
-  <div id="maintenanceScreen" class="overlay hidden maintenance-screen">
-    <div class="overlay-card">
-      <div class="maintenance-icon">🛠️</div>
-      <h2>Ведутся технические работы</h2>
-      <p class="subtitle">Мы скоро вернёмся с новыми уровнями и улучшениями! Попробуйте зайти чуть позже 🍓</p>
-    </div>
-  </div>
-
-  <!-- ===================== ЭКРАН БЛОКИРОВКИ (БАН) ===================== -->
-  <div id="bannedScreen" class="overlay hidden maintenance-screen">
-    <div class="overlay-card">
-      <div class="maintenance-icon">⛔</div>
-      <h2>Аккаунт заблокирован</h2>
-      <p class="subtitle">Доступ к игре ограничен администратором. Если это ошибка — свяжитесь с поддержкой.</p>
-    </div>
-  </div>
-
-  <!-- ===================== МОДАЛКА: ПАУЗА ===================== -->
-  <div id="modalPause" class="overlay hidden">
-    <div class="overlay-card">
-      <button class="modal-x" data-close="modalPause">❌</button>
-      <h2>Пауза</h2>
-      <button class="primary-btn" id="btnResume">Продолжить</button>
-      <button class="secondary-btn" id="btnPauseRestart">Начать заново</button>
-      <button class="secondary-btn" id="btnPauseExit">Выйти в меню</button>
-    </div>
-  </div>
-
-  <!-- ===================== МОДАЛКА: РЕЗУЛЬТАТ ===================== -->
   <div id="modalResult" class="overlay hidden">
-    <div class="overlay-card result-card">
-      <h2 id="resultTitle">Победа!</h2>
-      <div id="resultStars" class="result-stars">⭐⭐⭐</div>
-      <p class="final-score-label">Очки</p>
-      <p class="final-score" id="resultScore">0</p>
-      <p class="coins-earned" id="resultCoins">+0 🪙</p>
-      <div class="result-buttons">
-        <button class="primary-btn" id="btnNextLevel">Дальше</button>
-        <button class="secondary-btn" id="btnRetryLevel">Переиграть</button>
-        <button class="secondary-btn" id="btnShareResult">📤 Поделиться</button>
+    <div class="card result-card">
+      <div class="result-ribbon">УРОВЕНЬ ПРОЙДЕН!</div>
+      <div class="result-stars"><span class="rs" id="rs1">★</span><span class="rs rs-mid" id="rs2">★</span><span class="rs" id="rs3">★</span></div>
+      <p class="muted" id="resultMoves">Ходов: 0</p>
+      <div class="result-rewards" id="resultRewards"></div>
+      <div class="result-note hidden" id="resultNote"></div>
+      <button class="btn btn-primary btn-big" id="btnNext">Дальше ▶</button>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btnResultGarden">🌳 Сад</button>
+        <button class="btn btn-ghost" id="btnResultRetry">↻ Ещё раз</button>
+        <button class="btn btn-ghost" id="btnResultShare">📤</button>
       </div>
     </div>
   </div>
 
-  <!-- ===================== МОДАЛКА: ИНТРО УРОВНЯ ===================== -->
-  <div id="modalLevelIntro" class="overlay hidden level-intro-overlay">
-    <div class="overlay-card level-intro-card">
-      <div class="level-intro-badge" id="introLevelBadge">1</div>
-      <h2 id="introLevelTitle">Уровень 1</h2>
-      <p class="subtitle" id="introModeLabel">Сбор фруктов</p>
-      <div id="introGoalsRow" class="intro-goals-row"></div>
-      <button class="primary-btn" id="btnStartLevelIntro">▶ Начать</button>
+  <div id="modalPause" class="overlay hidden">
+    <div class="card">
+      <h2>Пауза</h2>
+      <p class="muted" id="pauseInfo"></p>
+      <button class="btn btn-primary btn-big" id="btnResume">Продолжить</button>
+      <button class="btn btn-ghost" id="btnPauseSound">🔊 Звук: вкл</button>
+      <button class="btn btn-ghost" id="btnRestart">↻ Начать заново</button>
+      <button class="btn btn-danger" id="btnQuit">Выйти из уровня</button>
     </div>
   </div>
 
-  <!-- ===================== КОНФЕТТИ ПРИ ПОБЕДЕ ===================== -->
-  <canvas id="confettiCanvas" class="confetti-canvas"></canvas>
-
-  <!-- ===================== СПЛЭШ-ЭКРАН ЗАГРУЗКИ ===================== -->
-  <div id="splashScreen" class="splash-screen">
-    <div class="splash-fruits">
-      <span style="--d:0s;--x:8%">🍎</span>
-      <span style="--d:0.3s;--x:28%">🍇</span>
-      <span style="--d:0.6s;--x:50%">🍓</span>
-      <span style="--d:0.9s;--x:72%">🍊</span>
-      <span style="--d:1.2s;--x:90%">🫐</span>
+  <div id="modalWheel" class="overlay hidden">
+    <div class="card wheel-card">
+      <button class="modal-x" data-close="modalWheel">✕</button>
+      <h2>Колесо Фортуны</h2>
+      <p class="muted" id="wheelSub">Бесплатное вращение раз в сутки</p>
+      <div class="wheel-wrap">
+        <div class="wheel-pointer">▼</div>
+        <div class="wheel" id="wheel"></div>
+        <div class="wheel-hub">🍓</div>
+      </div>
+      <button class="btn btn-primary btn-big" id="btnSpin">Крутить</button>
     </div>
-    <h1 class="game-logo splash-logo"><span>FRUIT</span><span class="logo-accent">BLITZ</span></h1>
-    <div class="splash-spinner"></div>
-    <p id="splashStatus" class="splash-status">Загрузка...</p>
-    <button id="btnSplashContinue" class="primary-btn splash-continue-btn hidden">▶ Играть</button>
   </div>
 
+  <div id="modalReward" class="overlay hidden">
+    <div class="card reward-card">
+      <div class="reward-rays"></div>
+      <div class="reward-icon" id="rewardIcon">🎁</div>
+      <h2 id="rewardTitle">Награда!</h2>
+      <p class="muted" id="rewardSub"></p>
+      <div class="reward-list" id="rewardList"></div>
+      <button class="btn btn-primary btn-big" id="btnRewardOk">Забрать</button>
+    </div>
+  </div>
+
+  <div id="modalNoLives" class="overlay hidden">
+    <div class="card">
+      <button class="modal-x" data-close="modalNoLives">✕</button>
+      <div class="big-emoji">💔</div>
+      <h2>Жизни закончились</h2>
+      <p class="muted" id="noLivesTimer">Следующая жизнь скоро</p>
+      <button class="btn btn-primary" id="btnRefillGems">Восполнить за 6 💎</button>
+      <button class="btn btn-gold" id="btnRefillCoins">Восполнить за 250 🪙</button>
+      <button class="btn btn-ghost" data-close="modalNoLives">Подождать</button>
+    </div>
+  </div>
+
+  <div id="modalConfirm" class="overlay hidden">
+    <div class="card">
+      <h2 id="confirmTitle">Вы уверены?</h2>
+      <p class="muted" id="confirmText"></p>
+      <button class="btn btn-danger" id="btnConfirmYes">Да</button>
+      <button class="btn btn-ghost" id="btnConfirmNo">Отмена</button>
+    </div>
+  </div>
+
+  <div id="modalSettings" class="overlay hidden">
+    <div class="card">
+      <button class="modal-x" data-close="modalSettings">✕</button>
+      <h2>⚙️ Настройки</h2>
+      <button class="setting-row" id="setSound"><span>🔊 Звуки</span><b class="toggle on" id="setSoundVal"></b></button>
+      <button class="setting-row" id="setVibro"><span>📳 Вибрация</span><b class="toggle on" id="setVibroVal"></b></button>
+      <button class="setting-row" id="setTutorial"><span>🎓 Пройти обучение заново</span><b>›</b></button>
+      <button class="setting-row" id="setInvite"><span>👥 Пригласить друга (+300 🪙)</span><b>›</b></button>
+      <p class="muted tiny" id="settingsInfo"></p>
+    </div>
+  </div>
+
+  <div id="modalAdmin" class="overlay hidden">
+    <div class="card admin-card">
+      <button class="modal-x" data-close="modalAdmin">✕</button>
+      <h2>⚙️ Админ-панель</h2>
+      <div class="tabs admin-tabs" id="adminTabs">
+        <button class="tab active" data-atab="stats">📊</button>
+        <button class="tab" data-atab="players">👥</button>
+        <button class="tab" data-atab="gift">🎁</button>
+        <button class="tab" data-atab="global">🌐</button>
+        <button class="tab" data-atab="cheats">⚡</button>
+      </div>
+      <div class="admin-body" id="adminBody"></div>
+    </div>
+  </div>
+
+  <!-- Экраны блокировки -->
+  <div id="maintenanceScreen" class="blocker hidden"><div class="card"><div class="big-emoji">🛠️</div><h2>Технические работы</h2><p class="muted">Мы готовим обновление с новыми уровнями. Загляните чуть позже 🍓</p></div></div>
+  <div id="bannedScreen" class="blocker hidden"><div class="card"><div class="big-emoji">⛔</div><h2>Аккаунт заблокирован</h2><p class="muted">Доступ ограничен администратором.</p></div></div>
+
+  <!-- Обучение -->
+  <div id="coach" class="coach hidden">
+    <div class="coach-hand hidden" id="coachHand">👆</div>
+    <div class="coach-bubble" id="coachBubble">
+      <p id="coachText"></p>
+      <button class="btn btn-primary btn-small hidden" id="coachBtn">Понятно</button>
+    </div>
+  </div>
+
+  <canvas id="fxCanvas" class="fx-canvas"></canvas>
+  <div id="toast" class="toast"></div>
+
+  <!-- Заставка -->
+  <div id="splash" class="splash">
+    <div class="splash-fruits"><span>🍎</span><span>🍋</span><span>🍇</span><span>🫐</span><span>🍊</span></div>
+    <h1 class="splash-logo"><span class="lw1">FRUIT</span><span class="lw2">BLITZ</span></h1>
+    <div class="splash-bar"><div class="splash-bar-fill" id="splashFill"></div></div>
+    <p class="splash-status" id="splashStatus">Загрузка...</p>
+  </div>
 </div>
+<script src="engine.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
