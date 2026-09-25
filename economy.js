@@ -211,7 +211,9 @@ module.exports = function attachEconomy(ctx) {
       if (rarity >= 0) {
         const pool = Items.dropPool(rarity);
         const def = pool[crypto.randomInt(0, pool.length)];
-        drop = view(createItem(def.id, p.id, { shiny: rnd() < Items.SHINY_CHANCE, source: 'drop' }));
+        const it = createItem(def.id, p.id, { shiny: rnd() < Items.SHINY_CHANCE, source: 'drop' });
+        drop = view(it);
+        feedItem(it, 'drop', { level: run.level });
       }
     }
     saveEco(); saveDB();
@@ -291,6 +293,7 @@ module.exports = function attachEconomy(ctx) {
     const shinyCount = its.filter((it) => it.shiny).length;
     its.forEach(destroyItem);
     const out = createItem(def.id, p.id, { q, shiny: shinyCount >= 5 || rnd() < shinyCount * 0.02, source: 'tradeup' });
+    feedItem(out, 'tradeup');
     saveEco(); saveDB();
     res.json({ success: true, item: view(out) });
   });
@@ -357,6 +360,7 @@ module.exports = function attachEconomy(ctx) {
     transfer(it, p.id);
     (eco.sales[l.itemId] = eco.sales[l.itemId] || []).push({ p: l.price, at: now() });
     if (eco.sales[l.itemId].length > 200) eco.sales[l.itemId] = eco.sales[l.itemId].slice(-200);
+    if (l.price >= 1000) feedItem(it, 'sale', { price: l.price });
     saveEco(); saveDB();
     notify(seller.id, `💰 Продано на маркете: <b>${itemTitle(it)}</b> за ${l.price} 💠\nВам зачислено ${l.price - fee} 💠 (комиссия ${fee}).`);
     res.json({ success: true, item: view(it), shards: p.shards });
@@ -447,7 +451,7 @@ module.exports = function attachEconomy(ctx) {
       const def = Items.BY_ID[g.item];
       if (def.limit && (eco.serials[g.item] || 0) >= def.limit) {
         const comp = stars * 2; p.shards += comp; rec.gave.shards = (rec.gave.shards || 0) + comp; // распродано в последний момент — компенсация
-      } else { const it = createItem(g.item, p.id, { source: 'stars', lockHours: 0 }); rec.gave.item = it.uid; }
+      } else { const it = createItem(g.item, p.id, { source: 'stars', lockHours: 0 }); rec.gave.item = it.uid; feedItem(it, 'excl'); }
     }
     if (g.pass) { p.passSeason = Items.seasonInfo().id; rec.gave.pass = p.passSeason; }
     if (g.vipDays) p.vipUntil = Math.max(now(), p.vipUntil || 0) + g.vipDays * 86400000;
@@ -562,6 +566,161 @@ module.exports = function attachEconomy(ctx) {
     res.json({ success: true });
   });
 
+  /* ============================================================
+     7. СОЦИАЛЬНОЕ: профиль-витрина, лайки, лента событий, рейтинги
+     ============================================================ */
+  if (!eco.likes || typeof eco.likes !== 'object') eco.likes = {};
+  if (!Array.isArray(eco.feed)) eco.feed = [];
+  // Оценка предмета: медиана последних продаж на маркете, иначе базовая цена редкости.
+  // Свежесть, «Сияющий» и низкий серийный номер повышают ценность — как в CS.
+  const RBASE = [10, 30, 100, 400, 1500, 6000, 20000];
+  const QMULT = [1.5, 1.2, 1, 0.9, 0.8];
+  function valueCtx() { return { med: {} }; }
+  function itemValue(it, ctx) {
+    const d = Items.BY_ID[it.itemId];
+    if (!d) return 0;
+    if (!(it.itemId in ctx.med)) ctx.med[it.itemId] = median((eco.sales[it.itemId] || []).slice(-20).map((s) => s.p));
+    let v = ctx.med[it.itemId] || RBASE[d.r] || 10;
+    const qi = Items.QUALITIES.indexOf(Items.qualityOf(it.q));
+    v *= QMULT[qi] != null ? QMULT[qi] : 1;
+    if (it.shiny) v *= 2;
+    if (it.serial <= 10) v *= 1.5;
+    return Math.round(v);
+  }
+  function collectionOf(uid, ctx) {
+    const inv = inventoryOf(uid);
+    let value = 0, best = null, bestV = -1;
+    inv.forEach((it) => { const v = itemValue(it, ctx); value += v; if (v > bestV) { bestV = v; best = it; } });
+    return { value, count: inv.length, best, bestValue: bestV };
+  }
+  const likesOf = (uid) => Object.keys(eco.likes[uid] || {}).length;
+
+  // Лента событий: редкие дропы, контракты, эксклюзивы, крупные продажи, рубежи уровней
+  function pushFeed(uid, kind, data) {
+    const p = players[uid];
+    if (!p || p.isBanned) return;
+    eco.feed.push(Object.assign({ id: newUid(), at: now(), uid: p.id, name: p.name, kind }, data || {}));
+    if (eco.feed.length > 150) eco.feed = eco.feed.slice(-150);
+    saveEco();
+  }
+  function feedItem(it, kind, extra) {
+    const d = Items.BY_ID[it.itemId];
+    if (!d) return;
+    if (kind === 'drop' || kind === 'tradeup') { if (!(d.r >= 3 || (it.shiny && d.r >= 2))) return; }
+    pushFeed(it.owner, kind, Object.assign({ itemId: it.itemId, serial: it.serial, shiny: it.shiny, r: d.r }, extra || {}));
+  }
+
+  // Публичные данные профиля, которые знает только клиент (рамка, звание, сад...)
+  const KEY = /^[a-z0-9_]{1,20}$/;
+  function ingestPub(p, b) {
+    if (!b || typeof b !== 'object') return;
+    const n = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+    p.pub = {
+      frame: KEY.test(b.frame) ? b.frame : 'none', title: KEY.test(b.title) ? b.title : 'novice',
+      titleName: String(b.titleName || '').slice(0, 30), titleIcon: String(b.titleIcon || '').slice(0, 8),
+      garden: n(b.garden, 9999), pass: n(b.pass, 30), wins: n(b.wins, 1e7), perfects: n(b.perfects, 1e7), combo: n(b.combo, 999), ach: n(b.ach, 999),
+      photo: /^https:\/\/t\.me\/i\/userpic\/[\w/.-]{1,200}$/.test(String(b.photo || '')) ? b.photo : null
+    };
+  }
+  function cardOf(p, extra) {
+    const pub = p.pub || {};
+    const fr = p.equip && p.equip.frame && eco.items[p.equip.frame] && eco.items[p.equip.frame].owner === p.id ? eco.items[p.equip.frame].itemId : null;
+    return Object.assign({ id: p.id, name: p.name, username: p.username, badge: badgeOf(p.id), photo: pub.photo || null, frame: pub.frame || 'none', itemFrame: fr,
+      titleName: pub.titleName || '', titleIcon: pub.titleIcon || '' }, extra || {});
+  }
+
+  // Рейтинги. Ценность коллекций считаем раз в минуту — предметов может быть много.
+  let colCache = { at: 0, map: {} };
+  function collectionMap() {
+    if (now() - colCache.at < 60000) return colCache.map;
+    const ctx = valueCtx(), map = {};
+    Object.values(eco.items).forEach((it) => { map[it.owner] = (map[it.owner] || 0) + itemValue(it, ctx); });
+    colCache = { at: now(), map };
+    return map;
+  }
+  const BOARDS = {
+    level: { val: (p) => p.bestLevel, sub: (p) => '⭐' + p.totalStars, tie: (p) => p.totalStars },
+    stars: { val: (p) => p.totalStars, sub: (p) => '🚩' + p.bestLevel, tie: (p) => p.bestLevel },
+    collection: { val: (p, m) => m[p.id] || 0, sub: (p) => inventoryOf(p.id).length + ' шт.', tie: (p) => p.bestLevel },
+    likes: { val: (p) => likesOf(p.id), sub: (p) => '🚩' + p.bestLevel, tie: (p) => p.bestLevel }
+  };
+  app.get('/api/social/top', requireUser, (req, res) => {
+    const by = BOARDS[req.query.by] ? String(req.query.by) : (req.query.by === 'friends' ? 'friends' : 'level');
+    const meP = players[String(req.user.id)];
+    const m = collectionMap();
+    let pool = Object.values(players).filter((p) => !p.isBanned);
+    let B = BOARDS[by];
+    if (by === 'friends') {
+      B = BOARDS.level;
+      const me = String(req.user.id);
+      pool = pool.filter((p) => p.id === me || p.refBy === me || (meP && meP.refBy === p.id));
+    } else pool = pool.filter((p) => B.val(p, m) > 0 && (by !== 'level' || p.bestLevel > 1));
+    pool.sort((a, b) => (B.val(b, m) - B.val(a, m)) || (B.tie(b) - B.tie(a)));
+    const rank = pool.findIndex((p) => p.id === String(req.user.id)) + 1;
+    const list = pool.slice(0, 50).map((p) => cardOf(p, { value: B.val(p, m), sub: B.sub(p) }));
+    res.json({ success: true, by, list, me: { rank, value: meP ? B.val(meP, m) : 0, total: pool.length } });
+  });
+
+  function rankIn(by, uid) {
+    const m = collectionMap(), B = BOARDS[by];
+    const mine = players[uid] ? B.val(players[uid], m) : 0;
+    if (!mine) return null;
+    let r = 1;
+    Object.values(players).forEach((p) => { if (!p.isBanned && p.id !== uid && B.val(p, m) > mine) r++; });
+    return r;
+  }
+  app.get('/api/social/profile/:id', requireUser, (req, res) => {
+    const t = players[String(req.params.id)];
+    if (!t || t.isBanned) return fail(res, 404, 'Игрок не найден');
+    ecoPlayer(t.id);
+    const ctx = valueCtx(), col = collectionOf(t.id, ctx);
+    let show = (t.showcase || []).map((u) => eco.items[u]).filter((it) => it && it.owner === t.id);
+    const auto = !show.length;
+    if (auto) show = inventoryOf(t.id).map((it) => [it, itemValue(it, ctx)]).sort((a, b) => b[1] - a[1]).slice(0, 5).map((x) => x[0]);
+    const me = String(req.user.id);
+    res.json({ success: true, profile: cardOf(t, {
+      bestLevel: t.bestLevel, totalStars: t.totalStars, createdAt: t.createdAt, lastSeen: t.lastSeen, pub: t.pub || {},
+      vip: t.vipUntil > now(), passPremium: t.passSeason === Items.seasonInfo().id,
+      collection: { value: col.value, count: col.count }, likes: likesOf(t.id), liked: !!(eco.likes[t.id] && eco.likes[t.id][me]),
+      showcase: show.map((it) => Object.assign(view(it), { value: itemValue(it, ctx) })), autoShowcase: auto,
+      ranks: { level: rankIn('level', t.id), collection: rankIn('collection', t.id), likes: rankIn('likes', t.id) },
+      recent: eco.feed.filter((e) => e.uid === t.id).slice(-5).reverse()
+    }) });
+  });
+  app.post('/api/social/like', requireUser, (req, res) => {
+    const p = ecoPlayer(req.user.id, req.user);
+    const to = String(req.body.id || '');
+    const t = players[to];
+    if (!t || t.isBanned) return fail(res, 404, 'Игрок не найден');
+    if (to === p.id) return fail(res, 400, 'Себе лайк поставить нельзя 🙂');
+    if ((p.verifiedWins || 0) < 1) return fail(res, 403, 'Пройдите хотя бы один уровень, чтобы ставить лайки');
+    const set = eco.likes[to] || (eco.likes[to] = {});
+    if (set[p.id]) { delete set[p.id]; }
+    else {
+      const day = new Date().toISOString().slice(0, 10);
+      if (!p.likeDay || p.likeDay.d !== day) p.likeDay = { d: day, n: 0 };
+      if (++p.likeDay.n > 50) return fail(res, 429, 'Лимит лайков на сегодня');
+      set[p.id] = now();
+      const n = likesOf(to);
+      if ([10, 50, 100, 500, 1000].includes(n)) pushFeed(to, 'likes', { n });
+    }
+    saveEco(); saveDB();
+    res.json({ success: true, liked: !!set[p.id], likes: likesOf(to) });
+  });
+  app.post('/api/social/showcase', requireUser, (req, res) => {
+    const p = ecoPlayer(req.user.id, req.user);
+    const uids = Array.from(new Set((Array.isArray(req.body.uids) ? req.body.uids : []).map(String))).slice(0, 5);
+    if (uids.some((u) => !eco.items[u] || eco.items[u].owner !== p.id)) return fail(res, 400, 'Можно выставить только свои предметы');
+    p.showcase = uids;
+    saveDB();
+    res.json({ success: true, showcase: uids });
+  });
+  app.get('/api/social/feed', (req, res) => {
+    const list = eco.feed.filter((e) => players[e.uid] && !players[e.uid].isBanned).slice(-40).reverse()
+      .map((e) => Object.assign({}, e, { badge: badgeOf(e.uid), photo: players[e.uid].pub && players[e.uid].pub.photo || null }));
+    res.json({ success: true, feed: list });
+  });
+
   console.log(`   Экономика: предметов ${Object.keys(eco.items).length}, лотов ${Object.keys(eco.listings).length}, платежей ${eco.payments.length}`);
   // Для аналитики: выручка в Stars по дням (UTC) и число премиум-пропусков текущего сезона
   function revenueByDay(days) {
@@ -571,5 +730,5 @@ module.exports = function attachEconomy(ctx) {
     return out;
   }
   function passBuyers() { const sid = Items.seasonInfo().id; return Object.values(players).filter((p) => p.passSeason === sid).length; }
-  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers };
+  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers, pushFeed, ingestPub };
 };
