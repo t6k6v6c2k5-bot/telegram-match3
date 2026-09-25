@@ -66,6 +66,8 @@
           <button class="home-tile" id="tileWheel"><span class="tile-ico spin-slow">🎡</span><b>Колесо</b><small id="wheelHint">Бесплатно!</small><i class="dot hidden" id="dotWheel"></i></button>
           <button class="home-tile" id="tileDaily"><span class="tile-ico">📅</span><b>Бонус дня</b><small id="dailyHint">Забери!</small><i class="dot hidden" id="dotDaily"></i></button>
           <button class="home-tile" id="tileGift"><span class="tile-ico">🎁</span><b>Подарок</b><small id="giftHint">Готов!</small><i class="dot hidden" id="dotGift"></i></button>
+          <button class="home-tile" id="tileCollection"><span class="tile-ico">💎</span><b>Коллекция</b><small id="collectionHint">Предметы</small><i class="dot hidden" id="dotCollection"></i></button>
+          <button class="home-tile" id="tileLeaders"><span class="tile-ico">🏆</span><b>Рейтинг</b><small>Топ игроков</small></button>
         </div>
 
         <button class="teaser garden-teaser" id="gardenTeaser">
@@ -140,6 +142,12 @@
     </section>
 
     <!-- ============ РЕЙТИНГ ============ -->
+    <section id="screenMarket" class="screen">
+      <div class="screen-head"><h2>💹 Маркет</h2><button class="chip shard-chip" id="mkShardsBtn">💠 <b id="mkShards">0</b> <span class="hud-plus">+</span></button></div>
+      <div class="tabs" id="mkTabs"></div>
+      <div class="screen-scroll" id="mkBody"></div>
+    </section>
+
     <section id="screenLeaders" class="screen">
       <div class="screen-head"><h2>🏆 Рейтинг</h2></div>
       <div class="screen-scroll" id="leadersBody"></div>
@@ -152,7 +160,7 @@
     <button class="nav-btn" data-nav="screenGarden"><span>🌳</span><small>Сад</small><i class="dot hidden" id="dotGarden"></i></button>
     <button class="nav-btn nav-home active" data-nav="screenHome"><span>🏠</span><small>Главная</small></button>
     <button class="nav-btn" data-nav="screenQuests"><span>📋</span><small>Задания</small><i class="dot hidden" id="dotQuests"></i></button>
-    <button class="nav-btn" data-nav="screenLeaders"><span>🏆</span><small>Рейтинг</small></button>
+    <button class="nav-btn" data-nav="screenMarket"><span>💹</span><small>Маркет</small><i class="dot hidden" id="dotMarket"></i></button>
   </nav>
 
   <button id="adminFab" class="admin-fab hidden" aria-label="Админка">⚙️</button>
@@ -237,6 +245,18 @@
     </div>
   </div>
 
+  <div id="modalItem" class="overlay hidden">
+    <div class="card item-card"><button class="modal-x" data-close="modalItem">✕</button><div id="itemBody"></div></div>
+  </div>
+
+  <div id="modalDrop" class="overlay hidden">
+    <div class="card drop-card"><div id="dropBody"></div></div>
+  </div>
+
+  <div id="modalTrade" class="overlay hidden">
+    <div class="card trade-card"><button class="modal-x" data-close="modalTrade">✕</button><div id="tradeBody"></div></div>
+  </div>
+
   <div id="modalConfirm" class="overlay hidden">
     <div class="card">
       <h2 id="confirmTitle">Вы уверены?</h2>
@@ -265,6 +285,7 @@
       <div class="tabs admin-tabs" id="adminTabs">
         <button class="tab active" data-atab="stats">📊</button>
         <button class="tab" data-atab="players">👥</button>
+        <button class="tab" data-atab="eco">💹</button>
         <button class="tab" data-atab="gift">🎁</button>
         <button class="tab" data-atab="global">🌐</button>
         <button class="tab" data-atab="cheats">⚡</button>
@@ -297,7 +318,9 @@
     <p class="splash-status" id="splashStatus">Загрузка...</p>
   </div>
 </div>
+<script src="items.js"></script>
 <script src="engine.js"></script>
 <script src="game.js"></script>
+<script src="market.js"></script>
 </body>
 </html>

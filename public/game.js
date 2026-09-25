@@ -302,7 +302,7 @@
     showToast(currency === 'gems' ? 'Не хватает кристаллов 💎' : 'Не хватает монет 🪙');
     return false;
   }
-  const hasInfiniteLives = () => state.infiniteLives || Date.now() < (state.infiniteUntil || 0);
+  const hasInfiniteLives = () => state.infiniteLives || Date.now() < (state.infiniteUntil || 0) || !!(window.FBMarket && FBMarket.isVip());
   function tickLives() {
     const now = Date.now();
     if (state.lives >= MAX_LIVES) state.nextLifeAt = null;
@@ -370,7 +370,8 @@
   /* ============================================================
      4. ИНТЕРФЕЙС: экраны, модалки, тосты, эффекты
      ============================================================ */
-  const SCREENS = ['screenHome', 'screenMap', 'screenGame', 'screenShop', 'screenGarden', 'screenQuests', 'screenLeaders'];
+  const SCREENS = ['screenHome', 'screenMap', 'screenGame', 'screenShop', 'screenGarden', 'screenQuests', 'screenLeaders', 'screenMarket'];
+  const MK = () => window.FBMarket || null;
   let currentScreen = 'screenHome';
   let isAdmin = false;
   function showScreen(id) {
@@ -389,6 +390,7 @@
     else if (id === 'screenGarden') renderGarden();
     else if (id === 'screenQuests') renderQuests();
     else if (id === 'screenLeaders') renderLeaders();
+    else if (id === 'screenMarket' && MK()) MK().render();
     renderHud();
     updateBadges();
     updateBackButton();
@@ -569,7 +571,8 @@
     const av = $('homeAvatar');
     av.innerHTML = avatarHtml();
     av.className = 'avatar' + (state.equippedFrame !== 'none' ? ' frame-' + state.equippedFrame : '');
-    $('homeName').textContent = displayName;
+    if (MK()) MK().decorateAvatar(av);
+    $('homeName').textContent = displayName + ((MK() && MK().myBadge()) ? ' ' + MK().myBadge() : '');
     const t = TITLES[state.equippedTitle] || TITLES.novice;
     $('homeTitle').textContent = t.icon + ' ' + t.name;
     $('homeLevel').textContent = state.unlockedLevel;
@@ -723,8 +726,9 @@
      8. ИНТРО УРОВНЯ
      ============================================================ */
   const TILE_HEX = ['#ff4d6d', '#ffd23f', '#b24dff', '#3fa9ff', '#ff9f43', '#38d97a'];
+  function skinEmojis() { return (MK() && MK().skinEmojis()) || (SKINS[state.equippedSkin] || SKINS.classic).emojis; }
   function goalIcon(g) {
-    if (g.type === 'collect') return (SKINS[state.equippedSkin] || SKINS.classic).emojis[g.t];
+    if (g.type === 'collect') return skinEmojis()[g.t];
     return { ice: '🧊', box: '📦', ingredient: '🥥', score: '⭐' }[g.type] || '🎯';
   }
   function goalLabel(g, st) {
@@ -779,7 +783,12 @@
     cell: 40, gap: 3, pad: 6, side: 300, busy: false, done: false, selected: null, armed: null, goalPrev: [], snap: null, turnCombo: 1 };
   let paused = false;
 
-  function startLevel(n, pre) {
+  async function startLevel(n, pre) {
+    if (board.starting) return;
+    board.starting = true;
+    try { await startLevelInner(n, pre); } finally { board.starting = false; }
+  }
+  async function startLevelInner(n, pre) {
     closeModal('modalIntro');
     tickLives();
     if (!hasInfiniteLives() && state.lives <= 0) { openNoLives(); return; }
@@ -788,7 +797,10 @@
     if (pre.length) dailyStat('boosters', pre.length);
     board.level = n;
     board.cfg = E.levelConfig(n);
-    board.st = E.createBoard(board.cfg, { preBoosters: pre });
+    // Сервер выдаёт seed — потом он сам переиграет уровень по журналу ходов и разыграет дроп
+    const run = MK() ? await MK().startRun(n, pre) : null;
+    board.run = run ? { id: run.runId, log: [] } : null;
+    board.st = E.createBoard(board.cfg, { preBoosters: pre, seed: run ? run.seed : undefined });
     board.done = false; board.busy = false; board.armed = null; board.selected = null; paused = false;
     board.snap = { cleared: 0, specials: 0 };
     board.goalPrev = board.st.goals.map((g) => g.count);
@@ -811,11 +823,11 @@
     el.style.width = el.style.height = (board.cell + g * 2) + 'px';
   }
   function styleTile(el, t) {
-    const skin = SKINS[state.equippedSkin] || SKINS.classic;
+    const emojis = skinEmojis();
     let cls = 'tile', emo = '';
     if (t.t === 'ING') { cls += ' c-ing'; emo = '🥥'; }
     else if (t.s === 'rainbow') { cls += ' c-rb'; emo = '🌈'; }
-    else { cls += ' c' + t.t; emo = skin.emojis[t.t] || '❓'; if (t.s) cls += ' sp-' + t.s; }
+    else { cls += ' c' + t.t; emo = emojis[t.t] || '❓'; if (t.s) cls += ' sp-' + t.s; }
     el.className = cls;
     el.querySelector('.emo').textContent = emo;
     el.style.width = el.style.height = board.cell + 'px';
@@ -838,6 +850,7 @@
   function buildBoardDom() {
     const st = board.st, S = st.size;
     board.el.innerHTML = '';
+    board.el.style.background = (MK() && MK().boardBg()) || '';
     board.tiles.clear(); board.ice.clear(); board.boxes.clear(); board.locks.clear(); board.cells = [];
     for (let r = 0; r < S; r++) for (let c = 0; c < S; c++) {
       const cell = document.createElement('div');
@@ -979,7 +992,7 @@
       board.tiles.delete(c.id);
       if (el) { el.classList.add('pop'); setTimeout(() => el.remove(), 290); }
       const sp = screenPt(c.r, c.c);
-      sparks(sp.x, sp.y, typeof c.t === 'number' && c.t >= 0 ? TILE_HEX[c.t] : '#fff', s.cleared.length > 20 ? 2 : 5);
+      sparks(sp.x, sp.y, (MK() && MK().fxColor()) || (typeof c.t === 'number' && c.t >= 0 ? TILE_HEX[c.t] : '#fff'), s.cleared.length > 20 ? 2 : 5);
     }
     s.iceHits.forEach((h) => {
       const el = board.ice.get(E.K(h.r, h.c));
@@ -1136,12 +1149,14 @@
       scheduleHint();
       return;
     }
+    if (board.run) board.run.log.push({ k: 's', a: [a.r, a.c], b: [b.r, b.c] });
     await runTurn(res.steps);
   }
   async function doActivate(cell) {
     if (!canAct()) return;
     clearSelection(); clearHint();
     const res = E.activateSpecial(board.st, cell.r, cell.c);
+    if (res.valid && board.run) board.run.log.push({ k: 't', r: cell.r, c: cell.c });
     if (res.valid) await runTurn(res.steps);
   }
 
@@ -1238,6 +1253,7 @@
     if (k === 'shuffle') {
       consumeBooster(k);
       const res = E.useBooster(board.st, 'shuffle');
+      if (board.run) board.run.log.push({ k: 'b', b: 'shuffle', r: 0, c: 0 });
       await runTurn(res.steps);
       return;
     }
@@ -1257,6 +1273,7 @@
     const res = E.useBooster(board.st, k, cell.r, cell.c);
     if (!res.valid) { Sound.nope(); showToast('Сюда нельзя — выбери фрукт'); return; }
     board.armed = null;
+    if (board.run) board.run.log.push({ k: 'b', b: k, r: cell.r, c: cell.c });
     consumeBooster(k);
     Sound.booster(); haptic('heavy');
     if (k === 'rocket') fxExplosion({ r: cell.r, c: cell.c, s: 'row' });
@@ -1302,6 +1319,7 @@
     if (firstClear) state.unlockedLevel = n + 1;
     let coins = firstClear ? 20 + stars * 10 + Math.min(80, Math.floor(n * 1.2)) : 10 + stars * 5;
     if (serverSettings.doubleRewards) coins *= 2;
+    if (MK() && MK().isVip()) coins = Math.round(coins * 1.5);
     addCoins(coins);
     state.stats.wins++;
     state.stats.bestScore = Math.max(state.stats.bestScore, st.score);
@@ -1314,6 +1332,8 @@
     scheduleSync(400);
     lastResult = { n, stars, coins, gained, firstClear, moves: st.moves, par: st.par, score: st.score };
     showResult(lastResult);
+    if (MK() && board.run) MK().finishRun(board.run);
+    board.run = null;
   }
   function showResult(r) {
     [1, 2, 3].forEach((i) => { $('rs' + i).className = 'rs' + (i === 2 ? ' rs-mid' : ''); });
@@ -1442,7 +1462,7 @@
   /* ============================================================
      11. МАГАЗИН
      ============================================================ */
-  const SHOP_TABS = [['hits', '🔥 Хиты'], ['boosters', '🚀 Бустеры'], ['lives', '❤️ Жизни'], ['chests', '🎁 Сундуки'], ['skins', '🎨 Скины'], ['profile', '👑 Профиль'], ['currency', '💱 Обмен']];
+  const SHOP_TABS = [['stars', '⭐ Донат'], ['hits', '🔥 Хиты'], ['boosters', '🚀 Бустеры'], ['lives', '❤️ Жизни'], ['chests', '🎁 Сундуки'], ['skins', '🎨 Скины'], ['profile', '👑 Профиль'], ['currency', '💱 Обмен']];
   let shopTab = 'hits';
   function renderShop() {
     $('shopTabs').innerHTML = SHOP_TABS.map(([k, n]) => `<button class="tab ${k === shopTab ? 'active' : ''}" data-st="${k}">${n}</button>`).join('');
@@ -1450,7 +1470,7 @@
     const body = $('shopBody');
     body.innerHTML = '';
     body.scrollTop = 0;
-    ({ hits: shopHits, boosters: shopBoosters, lives: shopLives, chests: shopChests, skins: shopSkins, profile: shopProfile, currency: shopCurrency })[shopTab](body);
+    ({ stars: (b) => (MK() ? MK().renderStarsShop(b) : null), hits: shopHits, boosters: shopBoosters, lives: shopLives, chests: shopChests, skins: shopSkins, profile: shopProfile, currency: shopCurrency })[shopTab](body);
   }
   function el(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
   function grid(body) { const g = document.createElement('div'); g.className = 'shop-grid'; body.appendChild(g); return g; }
@@ -1724,7 +1744,7 @@
     const podOrder = [top3[1], top3[0], top3[2]];
     let html = '<div class="lb-podium">' + podOrder.map((p, i) => p ? `<div class="podium p${[2, 1, 3][i]}"><div class="avatar">${p.me ? avatarHtml() : initialOf(p.name)}</div><b>${esc(p.name)}</b><small>ур. ${p.bestLevel}</small><div class="pd-bar">${[2, 1, 3][i]}</div></div>` : '<div class="podium"></div>').join('') + '</div>';
     html += `<p class="section-label">Вы на ${myRank}-м месте</p>`;
-    html += list.slice(0, 50).map((p, i) => `<div class="lb-row ${p.me ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span><div class="avatar">${p.me ? avatarHtml() : initialOf(p.name)}</div><span class="lb-name">${esc(p.name)}${p.username ? `<small>@${esc(p.username)}</small>` : ''}</span><span class="lb-val">🚩${p.bestLevel}<br><small>⭐${p.totalStars}</small></span></div>`).join('');
+    html += list.slice(0, 50).map((p, i) => `<div class="lb-row ${p.me ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span><div class="avatar">${p.me ? avatarHtml() : initialOf(p.name)}</div><span class="lb-name">${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : (p.me && MK() && MK().myBadge() ? ' ' + MK().myBadge() : '')}${p.username ? `<small>@${esc(p.username)}</small>` : ''}</span><span class="lb-val">🚩${p.bestLevel}<br><small>⭐${p.totalStars}</small></span></div>`).join('');
     if (myRank > 50) html += `<div class="lb-row me"><span class="lb-rank">${myRank}</span><div class="avatar">${avatarHtml()}</div><span class="lb-name">${esc(displayName)}</span><span class="lb-val">🚩${state.unlockedLevel}</span></div>`;
     body.innerHTML = html;
   }
@@ -1874,6 +1894,7 @@
       $('bannedScreen').classList.add('hidden');
       applyServerSettings(pull.data.settings);
       mergeServerPlayer(pull.data.player);
+      if (MK()) MK().refresh();
       let push = await api('/api/save-progress', { method: 'POST', body: progressPayload() });
       if (push.status === 409 && push.data && push.data.player) {
         mergeServerPlayer(push.data.player);
@@ -2006,6 +2027,8 @@
         const res = await api('/api/admin/settings', { method: 'POST', body: abody({ globalGift: gift }) });
         if (res.ok) { showToast('🎁 Подарок отправлен всем!'); renderAdmin(); } else aErr(res);
       });
+    } else if (adminTab === 'eco') {
+      if (MK()) MK().renderAdminEco(body);
     } else if (adminTab === 'global') {
       const r = await api('/api/admin/settings?' + aqs());
       if (!r.ok) { aErr(r); return; }
@@ -2097,6 +2120,9 @@
   $('hudLives').addEventListener('click', () => { if (!hasInfiniteLives() && state.lives <= 0) openNoLives(); else { shopTab = 'lives'; showScreen('screenShop'); } });
   $('btnHomePlay').addEventListener('click', () => { ensureAudio(); Sound.click(); haptic('medium'); hideCoach(); openIntro(state.unlockedLevel); });
   $('tileMap').addEventListener('click', () => { Sound.click(); showScreen('screenMap'); });
+  $('tileLeaders').addEventListener('click', () => { Sound.click(); showScreen('screenLeaders'); });
+  $('tileCollection').addEventListener('click', () => { Sound.click(); if (MK()) MK().setTab('inv'); showScreen('screenMarket'); });
+  $('chapterCard').addEventListener('click', () => { Sound.click(); showScreen('screenMap'); });
   $('tileWheel').addEventListener('click', () => { Sound.click(); openWheel(); });
   $('tileDaily').addEventListener('click', () => { Sound.click(); if (loginReady()) claimLogin(); else { questTab = 'login'; qsa('[data-qtab]').forEach((x) => x.classList.toggle('active', x.dataset.qtab === 'login')); showScreen('screenQuests'); } });
   $('tileGift').addEventListener('click', () => { Sound.click(); if (giftReady()) claimFreeGift(); else showToast('🎁 Следующий подарок через ' + mmss(4 * 3600000 - (Date.now() - state.freeGiftLast))); });
@@ -2180,6 +2206,14 @@
     }
     if (serverSettings.doubleRewards) setTimeout(() => showToast('🎉 Ивент: ×2 монеты за уровни!'), 1500);
   }
+  // Мост для модуля маркета (market.js)
+  window.FBApp = {
+    api, esc, fmt, mmss, showToast, showScreen, openModal, closeModal, confirmBox, showReward, applyReward, rewardItems,
+    Sound, haptic, burstConfetti, rainConfetti, flyTo, avatarHtml, initialOf, saveNow, renderHud, tg, playerId, displayName,
+    get state() { return state; }, get isAdmin() { return isAdmin; }, get currentScreen() { return currentScreen; },
+    refreshScreen() { if (currentScreen !== 'screenGame') showScreen(currentScreen); },
+    renderShop() { if (currentScreen === 'screenShop') renderShop(); }
+  };
   // Отладочный доступ для автотестов (только с ?debug в адресе)
   if (/[?&]debug\b/.test(location.search)) window.__FB = { board, E, get state() { return state; }, showScreen };
   boot();
