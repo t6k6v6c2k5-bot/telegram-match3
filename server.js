@@ -298,7 +298,7 @@ if (!BOT_TOKEN) {
   });
 
   bot.on('callback_query', async (q) => {
-    if (q.data === 'notif_off') return; // обрабатывается в growth.js
+    if (q.data === 'notif_off' || /^news_/.test(q.data || '')) return; // обрабатываются в growth.js и news.js
     const chatId = q.message.chat.id;
     if (q.data === 'leaderboard') {
       const top = leaderboard(10);
@@ -326,7 +326,7 @@ if (!BOT_TOKEN) {
 const app = express();
 app.use(cors());
 const jsonSmall = express.json({ limit: '64kb' }), jsonBig = express.json({ limit: '3mb' });
-app.use((req, res, next) => (req.path === '/api/share/prepare' ? jsonBig : jsonSmall)(req, res, next)); // карточки «Поделиться» — картинки
+app.use((req, res, next) => (req.path === '/api/share/prepare' || req.path === '/api/admin/news/post' ? jsonBig : jsonSmall)(req, res, next)); // карточки «Поделиться» — картинки
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 
 app.get('/api/game-settings', (req, res) => res.json({ success: true, ...publicSettings() }));
@@ -453,6 +453,7 @@ app.get('/api/admin/broadcast/status', requireAdmin, (req, res) => res.json({ su
 /* ---------------- Экономика: предметы, маркет, обмены, Telegram Stars ---------------- */
 economy = require('./economy.js')({ app, requireUser, requireAdmin, getOrCreatePlayer, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, getBot: () => bot, DEV_TRUST_IDS });
 /* ---------------- Аналитика, напоминания от бота, карточки «Поделиться» ---------------- */
+require('./news.js')({ app, requireAdmin, BOT_TOKEN, BOT_USERNAME, getBot: () => bot, settings, saveSettings, ADMIN_IDS });
 growth = require('./growth.js')({ app, requireUser, requireAdmin, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, BOT_USERNAME, getBot: () => bot, getEconomy: () => economy, settings, saveSettings });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
