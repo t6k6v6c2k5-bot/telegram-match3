@@ -1,17 +1,16 @@
 {
-  "name": "fruit-blitz-server",
-  "version": "1.0.0",
-  "description": "Backend + Telegram bot for Fruit Blitz Mini App",
+  "name": "fruit-blitz",
+  "version": "3.0.0",
+  "description": "Fruit Blitz — match-3 Telegram Mini App",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test/sim.js"
   },
+  "engines": { "node": ">=18" },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.19.2",
-    "node-telegram-bot-api": "^0.66.0",
-    "cors": "^2.8.5"
-  },
-  "engines": {
-    "node": ">=18"
+    "node-telegram-bot-api": "^0.66.0"
   }
 }
