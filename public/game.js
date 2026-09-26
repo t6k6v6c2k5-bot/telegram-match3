@@ -39,7 +39,9 @@
   function initTelegram() {
     if (!tg) { applySafeArea(); return; }
     try { tg.ready(); tg.expand(); } catch (e) { /* noop */ }
-    try { if (tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') && tg.requestFullscreen && !/android/i.test(navigator.userAgent)) tg.requestFullscreen(); } catch (e) { /* noop */ }
+    // Полноэкранный режим на Telegram Desktop сейчас багованный (открытые тикеты в telegramdesktop/tdesktop,
+    // июль 2026): не просим fullscreen на десктопных платформах, чтобы не провоцировать тот же баг.
+    try { if (tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') && tg.requestFullscreen && !['android', 'tdesktop', 'macos', 'web', 'weba'].includes(tg.platform)) tg.requestFullscreen(); } catch (e) { /* noop */ }
     try { if (tg.disableVerticalSwipes) tg.disableVerticalSwipes(); } catch (e) { /* noop */ }
     try { if (tg.enableClosingConfirmation) tg.enableClosingConfirmation(); } catch (e) { /* noop */ }
     try { if (tg.setHeaderColor) tg.setHeaderColor('#1a102f'); if (tg.setBackgroundColor) tg.setBackgroundColor('#1a102f'); if (tg.setBottomBarColor) tg.setBottomBarColor('#1a102f'); } catch (e) { /* noop */ }
@@ -952,7 +954,7 @@
     if (!w || !h) return;
     const S = st.size;
     const side = Math.floor(Math.max(220, Math.min(w - 2, h - 2, 640)));
-    board.pad = 6; board.gap = S >= 8 ? 3 : 4;
+    board.pad = 4; board.gap = S >= 8 ? 2 : 3;
     board.cell = (side - board.pad * 2 - board.gap * (S - 1)) / S;
     board.side = side;
     board.el.style.width = board.el.style.height = side + 'px';
@@ -1077,7 +1079,7 @@
       bx += sp.x; by += sp.y; bn++; burstColors.push(col);
     }
     // Особо крупное комбо — добавляем большой всплеск капель во все стороны из центра собранной группы
-    if (s.combo >= 3 && bn) juiceBurst(bx / bn, by / bn, burstColors, Math.min(46, 14 + s.combo * 6));
+    if (s.combo >= 3 && bn) juiceBurst(bx / bn, by / bn, burstColors, Math.min(34, 12 + s.combo * 4));
     s.iceHits.forEach((h) => {
       const el = board.ice.get(E.K(h.r, h.c));
       if (!el) return;
