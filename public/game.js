@@ -2805,6 +2805,13 @@
       changed = true;
     }
     state.fresh = false;
+    // Сад мог отстать на этом конкретном устройстве от предыдущей версии игры (когда сад ещё не
+    // синхронизировался вовсе) или от прогресса на другом устройстве — области открываются только
+    // по порядку и не сгорают, поэтому просто подтягиваем более продвинутое состояние с сервера.
+    if (sp.garden && (sp.garden.areasDone || 0) > (state.garden.areasDone || 0)) {
+      state.garden = { area: sp.garden.area || 0, areasDone: sp.garden.areasDone || 0, built: Array.isArray(sp.garden.built) ? sp.garden.built.slice() : [] };
+      changed = true;
+    }
     if ((sp.adminRev || 0) > (state.adminRev || 0)) {
       state.coins = sp.coins; state.gems = sp.gems; state.lives = sp.lives;
       state.nextLifeAt = state.lives < MAX_LIVES ? Date.now() + LIFE_REGEN_MS : null;
