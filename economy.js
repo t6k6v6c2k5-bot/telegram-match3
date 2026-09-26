@@ -740,5 +740,5 @@ module.exports = function attachEconomy(ctx) {
     return out;
   }
   function passBuyers() { const sid = Items.seasonInfo().id; return Object.values(players).filter((p) => p.passSeason === sid).length; }
-  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers, pushFeed, ingestPub };
+  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers, pushFeed, ingestPub, shortNameH };
 };

@@ -466,6 +466,8 @@ app.get('/api/admin/broadcast/status', requireAdmin, (req, res) => res.json({ su
 economy = require('./economy.js')({ app, requireUser, requireAdmin, getOrCreatePlayer, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, getBot: () => bot, DEV_TRUST_IDS });
 /* ---------------- Аналитика, напоминания от бота, карточки «Поделиться» ---------------- */
 require('./news.js')({ app, requireAdmin, BOT_TOKEN, BOT_USERNAME, getBot: () => bot, settings, saveSettings, ADMIN_IDS });
+/* ---------------- Арена: испытание дня и дуэли ---------------- */
+require('./arena.js')({ app, requireUser, requireAdmin, players, saveDB, writeJSON, loadJSON, DATA_DIR, getBot: () => bot, WEBAPP_URL, BOT_USERNAME, pushFeed: economy && economy.pushFeed, shortNameH: economy && economy.shortNameH });
 growth = require('./growth.js')({ app, requireUser, requireAdmin, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, BOT_USERNAME, getBot: () => bot, getEconomy: () => economy, settings, saveSettings });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
