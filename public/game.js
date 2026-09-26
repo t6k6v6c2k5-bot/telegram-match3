@@ -152,6 +152,14 @@
     rainbow: { icon: '🌈', name: 'Радуга', desc: 'Убирает все фишки одного цвета', price: 300 }
   };
   const BOOSTER_KEYS = Object.keys(BOOSTERS);
+  // Легендарные бустеры: очень редкий дроп (сервер, ~1 на 500 побед) или покупка за Stars.
+  // Не входят в BOOSTERS/BOOSTER_KEYS — не должны попадать в обычные награды и в общий список бустеров.
+  const LEGENDARY = {
+    nuke: { icon: '☢️', name: 'Ядерный удар', desc: 'Полностью очищает всё поле одним взрывом', color: '#ff5a3c' },
+    tornado: { icon: '🌪️', name: 'Торнадо', desc: 'Сметает 3 случайные линии поля', color: '#7fd6ff' },
+    lightning: { icon: '⚡', name: 'Гнев Зевса', desc: '5 ударов молнии по случайным фруктам', color: '#ffe066' }
+  };
+  const LEGENDARY_KEYS = Object.keys(LEGENDARY);
   const PRE_BOOSTERS = ['rocket', 'bomb', 'rainbow'];
 
   const GARDEN_AREAS = [
@@ -242,6 +250,7 @@
       ownedSkins: { classic: true }, equippedSkin: 'classic',
       ownedFrames: { none: true }, equippedFrame: 'none',
       ownedTitles: { novice: true }, equippedTitle: 'novice', titleAuto: true,
+      legendary: { nuke: 0, tornado: 0, lightning: 0 },
       garden: { area: 0, built: [], areasDone: 0 },
       daily: null, login: { last: null, streak: 0 },
       wheelLast: 0, freeGiftLast: 0, starterBought: false, dealDay: null,
@@ -263,6 +272,8 @@
     delete s.boosters.rocketBoost; delete s.boosters.moves;
     BOOSTER_KEYS.forEach((k) => { s.boosters[k] = Math.max(0, Math.floor(Number(s.boosters[k]) || 0)); });
     s.stats = Object.assign(defaultState().stats, raw.stats || {});
+    s.legendary = Object.assign({ nuke: 0, tornado: 0, lightning: 0 }, raw.legendary || {});
+    LEGENDARY_KEYS.forEach((k) => { s.legendary[k] = Math.max(0, Math.floor(Number(s.legendary[k]) || 0)); });
     s.levelStars = raw.levelStars && typeof raw.levelStars === 'object' ? raw.levelStars : {};
     s.claimedChests = raw.claimedChests || {};
     s.ownedSkins = Object.assign({ classic: true }, raw.ownedSkins || {});
@@ -358,6 +369,7 @@
     if (rw.stars) state.starsBank += rw.stars;
     if (rw.infiniteMin) state.infiniteUntil = Math.max(Date.now(), state.infiniteUntil || 0) + rw.infiniteMin * 60000;
     if (rw.boosters) Object.keys(rw.boosters).forEach((k) => { if (BOOSTERS[k]) state.boosters[k] = (state.boosters[k] || 0) + rw.boosters[k]; });
+    if (rw.legendary) Object.keys(rw.legendary).forEach((k) => { if (LEGENDARY[k]) state.legendary[k] = (state.legendary[k] || 0) + rw.legendary[k]; });
     if (rw.skin) state.ownedSkins[rw.skin] = true;
     if (rw.frame) state.ownedFrames[rw.frame] = true;
     if (rw.title) { state.ownedTitles[rw.title] = true; if (state.titleAuto) state.equippedTitle = rw.title; }
@@ -372,6 +384,7 @@
     if (rw.lives) out.push(['❤️', 'Все жизни']);
     if (rw.infiniteMin) out.push(['♾️', rw.infiniteMin + ' мин ❤️']);
     if (rw.boosters) Object.keys(rw.boosters).forEach((k) => { if (rw.boosters[k]) out.push([BOOSTERS[k].icon, '×' + rw.boosters[k]]); });
+    if (rw.legendary) Object.keys(rw.legendary).forEach((k) => { if (rw.legendary[k]) out.push([LEGENDARY[k].icon, esc(LEGENDARY[k].name) + ' ×' + rw.legendary[k]]); });
     if (rw.skin) out.push([SKINS[rw.skin].emojis[0], 'Скин «' + SKINS[rw.skin].name + '»']);
     if (rw.frame) out.push([FRAMES[rw.frame].icon, 'Рамка «' + FRAMES[rw.frame].name + '»']);
     if (rw.title) out.push([TITLES[rw.title].icon, 'Звание «' + TITLES[rw.title].name + '»']);
@@ -822,6 +835,7 @@
     board.snap = { cleared: 0, specials: 0 };
     board.t0 = Date.now();
     track('lvl_start', { n });
+    renderLegendaryBar();
     board.goalPrev = board.st.goals.map((g) => g.count);
     saveState();
     showScreen('screenGame');
@@ -1300,6 +1314,83 @@
     else if (k === 'rainbow') fxExplosion({ r: cell.r, c: cell.c, s: 'rainbow' });
     else { const sp = screenPt(cell.r, cell.c); sparks(sp.x, sp.y, '#fff', 14); }
     await runTurn(res.steps);
+  }
+
+
+  /* ---------------- Легендарные бустеры: ☢️ 🌪️ ⚡ ---------------- */
+  function renderLegendaryBar() {
+    const bar = $('legendaryBar');
+    const owned = LEGENDARY_KEYS.filter((k) => state.legendary[k] > 0);
+    bar.classList.toggle('hidden', !owned.length);
+    if (!owned.length) return;
+    bar.innerHTML = owned.map((k) => `<button class="legendary" data-k="${k}" style="--lc:${LEGENDARY[k].color}" aria-label="${esc(LEGENDARY[k].name)}">${LEGENDARY[k].icon}<span class="b-count">${state.legendary[k]}</span></button>`).join('');
+    qsa('.legendary', bar).forEach((b) => b.addEventListener('click', () => onLegendary(b.dataset.k)));
+  }
+  async function onLegendary(k) {
+    if (!board.st || board.busy || board.done || paused || !(state.legendary[k] > 0)) return;
+    const L = LEGENDARY[k];
+    const ok = await confirmBox(`${L.icon} ${L.name}`, L.desc + `. Осталось: ${state.legendary[k]}. Бустеры не тратят ходы!`, 'Применить');
+    if (!ok) return;
+    ensureAudio(); clearSelection(); clearHint();
+    board.busy = true;
+    const res = E.useBooster(board.st, k);
+    if (!res.valid) { board.busy = false; return; }
+    if (board.run) board.run.log.push({ k: 'b', b: k, r: 0, c: 0 });
+    state.legendary[k]--;
+    state.stats.boostersUsed++;
+    dailyStat('boosters', 1);
+    saveState(); scheduleSync(); renderLegendaryBar();
+    haptic('heavy');
+    if (k === 'nuke') await fxNuke();
+    else if (k === 'tornado') await fxTornado(res.lines);
+    else if (k === 'lightning') await fxLightning(res.strikes);
+    board.busy = false;
+    await runTurn(res.steps);
+  }
+  async function fxNuke() {
+    Sound.boom(); Sound.boom();
+    board.el.classList.add('shake-big');
+    const flash = document.createElement('div'); flash.className = 'fx-nuke-flash'; board.el.appendChild(flash);
+    const cloud = document.createElement('div'); cloud.className = 'fx-nuke-cloud'; cloud.textContent = '☢️💥'; board.el.appendChild(cloud);
+    const ring = document.createElement('div'); ring.className = 'fx-nuke-ring'; board.el.appendChild(ring);
+    for (let i = 0; i < 22; i++) setTimeout(() => tone(70 + i * 4, 0.05, 'sawtooth', 0.06), i * 18);
+    await wait(700);
+    board.el.classList.remove('shake-big');
+    [flash, cloud, ring].forEach((e) => e.remove());
+  }
+  async function fxTornado(lines) {
+    const S = board.st.size, cs = board.cell;
+    const el = document.createElement('div'); el.className = 'fx-tornado'; el.textContent = '🌪️';
+    board.el.appendChild(el);
+    board.el.classList.add('shake');
+    Sound.zap();
+    const horiz = lines[0].horiz;
+    for (let step = 0; step <= 20; step++) {
+      const t = step / 20;
+      if (horiz) { el.style.left = (t * board.side - cs / 2) + 'px'; el.style.top = (cellPos(lines[Math.floor(t * lines.length) % lines.length].i, 0).y) + 'px'; }
+      else { el.style.top = (t * board.side - cs / 2) + 'px'; el.style.left = (cellPos(0, lines[Math.floor(t * lines.length) % lines.length].i).x) + 'px'; }
+      await wait(20);
+    }
+    el.remove();
+  }
+  async function fxLightning(strikes) {
+    for (const s of strikes) {
+      const p = screenPt(s.r, s.c);
+      const bolt = document.createElement('div'); bolt.className = 'fx-bolt';
+      bolt.style.left = (p.x - board.el.getBoundingClientRect().left) + 'px';
+      bolt.style.height = (p.y - board.el.getBoundingClientRect().top) + 'px';
+      board.el.appendChild(bolt);
+      const ring = document.createElement('div'); const cs = board.cell * 2.2;
+      ring.className = 'fx-ring'; ring.style.cssText += `left:${p.x - board.el.getBoundingClientRect().left - cs / 2}px;top:${p.y - board.el.getBoundingClientRect().top - cs / 2}px;width:${cs}px;height:${cs}px;border-color:#ffe066`;
+      board.el.appendChild(ring);
+      tone(1400, 0.05, 'square', 0.08);
+      haptic('medium');
+      board.el.classList.remove('shake'); void board.el.offsetWidth; board.el.classList.add('shake');
+      await wait(120);
+      bolt.remove();
+      setTimeout(() => ring.remove(), 500);
+    }
+    await wait(150);
   }
 
   /* ---------------- Победа ---------------- */
@@ -2422,7 +2513,7 @@
   function progressPayload() {
     return { telegram_id: playerId, name: tgUser ? tgUser.first_name : '', username: tgUser ? tgUser.username : '',
       level: state.unlockedLevel, totalStars: totalStars(), starsBank: state.starsBank, coins: state.coins, gems: state.gems,
-      lives: state.lives, boosters: state.boosters, score: state.stats.bestScore, adminRev: state.adminRev,
+      lives: state.lives, boosters: state.boosters, legendary: state.legendary, score: state.stats.bestScore, adminRev: state.adminRev,
       tz: -new Date().getTimezoneOffset(), timers: reminderTimers(), passUnclaimed: passClaimable(), pub: pubPayload() };
   }
   // Когда что-то снова станет доступно — сервер напомнит через бота, если игрок не зашёл сам
@@ -2472,6 +2563,7 @@
     if (state.fresh && sp.bestLevel > 1) {
       state.unlockedLevel = sp.bestLevel; state.coins = sp.coins; state.gems = sp.gems; state.starsBank = sp.starsBank;
       BOOSTER_KEYS.forEach((k) => { state.boosters[k] = sp.boosters[k] || 0; });
+      LEGENDARY_KEYS.forEach((k) => { state.legendary[k] = (sp.legendary && sp.legendary[k]) || 0; });
       state.tutorialDone = true; state.tips = { swap: true, special: true, garden: true, boosters: true };
       state.adminRev = sp.adminRev || 0;
       showToast('☁️ Прогресс восстановлен из облака');
@@ -2483,6 +2575,7 @@
       state.nextLifeAt = state.lives < MAX_LIVES ? Date.now() + LIFE_REGEN_MS : null;
       state.unlockedLevel = Math.max(1, sp.bestLevel); state.starsBank = sp.starsBank;
       BOOSTER_KEYS.forEach((k) => { state.boosters[k] = sp.boosters[k] || 0; });
+      LEGENDARY_KEYS.forEach((k) => { state.legendary[k] = (sp.legendary && sp.legendary[k]) || 0; });
       state.adminRev = sp.adminRev;
       showToast('🎁 Ваш аккаунт обновлён');
       changed = true;
@@ -2763,6 +2856,7 @@
       ${numField('🚩 Открытый уровень', 'fLevel', p.bestLevel, '<button class="btn btn-gold" data-a="level">Установить</button>')}
       ${numField('⭐ Звёзды для Сада', 'fStars', p.starsBank, '<button class="btn btn-gold" data-a="stars">Установить</button>')}
       <div class="a-field"><label>Выдать бустер (есть: ${BOOSTER_KEYS.map((k) => BOOSTERS[k].icon + p.boosters[k]).join(' ')})</label><div class="a-row"><select class="a-select" id="fBooster">${BOOSTER_KEYS.map((k) => `<option value="${k}">${BOOSTERS[k].icon} ${BOOSTERS[k].name}</option>`).join('')}</select><input class="a-input" id="fBAmt" type="number" value="3" style="max-width:70px" /><button class="btn btn-green" data-a="booster">Выдать</button></div></div>
+      <div class="a-field"><label>☢️ Легендарный бустер (есть: ${LEGENDARY_KEYS.map((k) => LEGENDARY[k].icon + (p.legendary ? p.legendary[k] : 0)).join(' ')})</label><div class="a-row"><select class="a-select" id="fLegend">${LEGENDARY_KEYS.map((k) => `<option value="${k}">${LEGENDARY[k].icon} ${LEGENDARY[k].name}</option>`).join('')}</select><input class="a-input" id="fLAmt" type="number" value="1" style="max-width:70px" /><button class="btn btn-green" data-a="legend">Выдать</button></div></div>
       <div class="a-grid"><button class="btn ${p.isBanned ? 'btn-green' : 'btn-danger'}" data-a="ban">${p.isBanned ? '✅ Разбанить' : '🚫 Забанить'}</button><button class="btn btn-danger" data-a="reset">🔄 Сбросить прогресс</button></div>
       <p class="muted tiny">Изменения применятся у игрока при следующей синхронизации (до 45 сек или при входе).</p></div>`;
     const v = (id) => Math.floor(Number($(id).value) || 0);
@@ -2775,6 +2869,7 @@
       level: () => ({ action: 'set_level', value: v('fLevel') }),
       stars: () => ({ action: 'set_stars', value: v('fStars') }),
       booster: () => ({ action: 'give_booster', booster: $('fBooster').value, value: v('fBAmt') }),
+      legend: () => ({ action: 'give_legendary', booster: $('fLegend').value, value: v('fLAmt') }),
       ban: () => ({ action: 'toggle_ban', isBanned: !p.isBanned }),
       reset: () => ({ action: 'reset_progress' })
     };

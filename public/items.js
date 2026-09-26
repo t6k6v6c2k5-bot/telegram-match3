@@ -115,7 +115,12 @@
     { id: 'starter', title: 'Набор донатера', desc: '300💠 + 5000🪙 + по 5 бустеров + значок «Основатель»', stars: 99, grant: { shards: 300, item: 'bg_founder', soft: { coins: 5000, boosters: { hammer: 5, shuffle: 5, rocket: 5, bomb: 5, rainbow: 5 } } }, icon: '🎁', once: true, tag: 'ХИТ' },
     { id: 'vip30', title: 'VIP на 30 дней', desc: 'Бесконечные жизни, +50% монет за уровни, VIP-значок', stars: 250, grant: { vipDays: 30 }, icon: '👑' },
     { id: 'coins5k', title: 'Мешок монет', desc: '5 000 монет', stars: 25, grant: { soft: { coins: 5000 } }, icon: '🪙' },
-    { id: 'boost', title: 'Сундук бустеров', desc: 'По 10 каждого бустера', stars: 60, grant: { soft: { boosters: { hammer: 10, shuffle: 10, rocket: 10, bomb: 10, rainbow: 10 } } }, icon: '🧰' }
+    { id: 'boost', title: 'Сундук бустеров', desc: 'По 10 каждого бустера', stars: 60, grant: { soft: { boosters: { hammer: 10, shuffle: 10, rocket: 10, bomb: 10, rainbow: 10 } } }, icon: '🧰' },
+    // Легендарные бустеры — мощные и эффектные, не тратят ходы. Дорого специально: редкость — часть привлекательности.
+    { id: 'leg_nuke', title: '☢️ Ядерный удар', desc: 'Полностью очищает поле одним взрывом. Эффектная анимация!', stars: 70, grant: { soft: { legendary: { nuke: 1 } } }, icon: '☢️', legendary: true },
+    { id: 'leg_tornado', title: '🌪️ Торнадо', desc: 'Сметает 3 случайные линии поля', stars: 40, grant: { soft: { legendary: { tornado: 1 } } }, icon: '🌪️', legendary: true },
+    { id: 'leg_lightning', title: '⚡ Гнев Зевса', desc: '5 ударов молнии по случайным фруктам', stars: 40, grant: { soft: { legendary: { lightning: 1 } } }, icon: '⚡', legendary: true },
+    { id: 'leg_arsenal', title: '💥 Комплект разрушителя', desc: '☢️ Ядерный удар ×1 + 🌪️ Торнадо ×2 + ⚡ Гнев Зевса ×2 — выгоднее по отдельности', stars: 180, grant: { soft: { legendary: { nuke: 1, tornado: 2, lightning: 2 } } }, icon: '💥', legendary: true, tag: 'ВЫГОДА' }
   ];
   // Сезонный пропуск: сезоны по 30 дней, общие для клиента и сервера
   const SEASON_EPOCH = Date.UTC(2026, 8, 25);

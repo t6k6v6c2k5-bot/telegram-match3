@@ -821,3 +821,36 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .nw-img .btn { margin: 0; }
 .nw-img img { width: 100%; border-radius: 12px; margin-top: 4px; }
 .nw-chk { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+
+/* ---------------- Легендарные бустеры ---------------- */
+.legendary-bar { display: flex; justify-content: center; gap: 10px; padding: 4px 0; }
+.legendary { position: relative; width: 52px; height: 52px; border-radius: 16px; font-size: 26px; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--lc) 45%, transparent), rgba(20,10,35,.85) 75%);
+  border: 2px solid var(--lc); box-shadow: 0 0 14px color-mix(in srgb, var(--lc) 70%, transparent), inset 0 0 10px rgba(255,255,255,.15);
+  animation: legendary-pulse 1.6s ease-in-out infinite; }
+@keyframes legendary-pulse { 50% { transform: scale(1.06); box-shadow: 0 0 22px var(--lc), inset 0 0 12px rgba(255,255,255,.25); } }
+.legendary .b-count { position: absolute; bottom: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--lc); color: #1a0d00; font-size: 11px; font-weight: 900; display: grid; place-items: center; border: 2px solid #1a0d33; }
+.legendary:active { transform: scale(.92); }
+
+/* ☢️ Ядерный удар */
+.board.shake-big { animation: board-shake-big .7s cubic-bezier(.2,.8,.3,1); }
+@keyframes board-shake-big { 0%,100% { transform: translate(0,0); } 10% { transform: translate(-10px,6px) rotate(-1deg); } 20% { transform: translate(9px,-7px) rotate(1deg); } 30% { transform: translate(-8px,5px); } 40% { transform: translate(7px,-6px); } 50% { transform: translate(-6px,4px); } 60% { transform: translate(5px,-4px); } 70% { transform: translate(-4px,3px); } 80% { transform: translate(3px,-2px); } 90% { transform: translate(-2px,1px); } }
+.fx-nuke-flash { position: absolute; inset: -20px; z-index: 9; pointer-events: none; background: radial-gradient(circle, #fff, #ffdf8a 35%, #ff5a3c 60%, transparent 78%); animation: nuke-flash .7s ease-out forwards; }
+@keyframes nuke-flash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+.fx-nuke-ring { position: absolute; left: 50%; top: 50%; z-index: 8; pointer-events: none; width: 10px; height: 10px; border-radius: 50%; border: 6px solid #ffb84d; box-shadow: 0 0 30px #ff5a3c; transform: translate(-50%, -50%); animation: nuke-ring .7s ease-out forwards; }
+@keyframes nuke-ring { from { width: 10px; height: 10px; opacity: 1; } to { width: 260vw; height: 260vw; opacity: 0; } }
+.fx-nuke-cloud { position: absolute; left: 50%; top: 55%; z-index: 9; pointer-events: none; font-size: 30px; transform: translate(-50%, -50%) scale(.3); animation: nuke-cloud .7s cubic-bezier(.2,.9,.3,1) forwards; text-shadow: 0 0 20px #ff5a3c; }
+@keyframes nuke-cloud { 0% { transform: translate(-50%, 0%) scale(.2); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(-50%, -140%) scale(3.4); opacity: 0; } }
+
+/* 🌪️ Торнадо */
+.fx-tornado { position: absolute; z-index: 8; pointer-events: none; font-size: 40px; filter: drop-shadow(0 0 10px #7fd6ff); animation: tornado-spin .4s linear infinite; }
+@keyframes tornado-spin { to { transform: rotate(360deg); } }
+
+/* ⚡ Гнев Зевса */
+.fx-bolt { position: absolute; top: 0; width: 4px; z-index: 9; pointer-events: none; background: linear-gradient(180deg, #fff, #ffe066 40%, #ffe066 60%, transparent); box-shadow: 0 0 12px #ffe066, 0 0 26px #fff59d; clip-path: polygon(40% 0%, 60% 0%, 45% 35%, 70% 35%, 30% 100%, 45% 45%, 20% 45%); animation: bolt-in .12s ease-out; }
+@keyframes bolt-in { from { opacity: 0; transform: scaleY(.3); transform-origin: top; } to { opacity: 1; transform: scaleY(1); } }
+
+/* ---------------- Легендарные бустеры в магазине ---------------- */
+.product.legendary-product { position: relative; background: radial-gradient(circle at 50% 20%, rgba(255,90,60,.28), rgba(20,10,35,.9) 70%); border: 2px solid #ff8a5c; box-shadow: 0 0 18px rgba(255,90,60,.55); animation: legendary-glow 2.2s ease-in-out infinite; }
+@keyframes legendary-glow { 50% { box-shadow: 0 0 30px rgba(255,140,60,.85); border-color: #ffcf5c; } }
+.product.legendary-product .p-ico { font-size: 34px; filter: drop-shadow(0 0 8px rgba(255,140,60,.8)); }

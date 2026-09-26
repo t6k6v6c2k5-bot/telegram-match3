@@ -603,6 +603,29 @@
   /* Бустеры не тратят ходы */
   function useBooster(st, kind, r, c) {
     if (kind === 'shuffle') return { valid: true, steps: [shuffleBoard(st)] };
+    if (kind === 'nuke') {
+      const S = st.size, cells = new Set();
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (st.tiles[y][x] || st.box[y][x] > 0) cells.add(K(y, x));
+      if (!cells.size) return { valid: false };
+      return { valid: true, steps: runCascade(st, { cells, created: [], matchCells: null }) };
+    }
+    if (kind === 'tornado') {
+      const S = st.size, idx = shuffleArr(st.rng, Array.from({ length: S }, (_, i) => i)).slice(0, Math.min(3, S));
+      const horiz = st.rng() < 0.5, cells = new Set();
+      idx.forEach((i) => { for (let j = 0; j < S; j++) cells.add(horiz ? K(i, j) : K(j, i)); });
+      if (!cells.size) return { valid: false };
+      return { valid: true, steps: runCascade(st, { cells, created: [], matchCells: null }), lines: idx.map((i) => ({ i, horiz })) };
+    }
+    if (kind === 'lightning') {
+      const S = st.size, cand = [];
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (st.tiles[y][x] || st.box[y][x] > 0) cand.push([y, x]);
+      shuffleArr(st.rng, cand);
+      const strikes = cand.slice(0, Math.min(5, cand.length));
+      const cells = new Set();
+      strikes.forEach(([y, x]) => { areaFor(st, y, x, 'bomb').forEach((k) => cells.add(k)); });
+      if (!cells.size) return { valid: false };
+      return { valid: true, steps: runCascade(st, { cells, created: [], matchCells: null }), strikes: strikes.map(([r2, c2]) => ({ r: r2, c: c2 })) };
+    }
     if (!inB(st, r, c)) return { valid: false };
     const tile = st.tiles[r][c];
     const isBox = st.box[r][c] > 0;

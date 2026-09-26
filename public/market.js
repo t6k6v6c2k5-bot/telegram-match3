@@ -519,15 +519,16 @@
       const done = p.once && once.has(p.id);
       const out = d && soldOut.has(d.id);
       const left = d && d.limit ? Math.max(0, d.limit - ((me && me.minted && me.minted[d.id]) || 0)) : null;
-      return `<div class="product${d ? ' excl' : ''}"${d ? ` style="--rc:${rar(d.r).color}"` : ''}>${p.tag ? `<span class="p-tag">${esc(p.tag)}</span>` : ''}
+      return `<div class="product${d ? ' excl' : ''}${p.legendary ? ' legendary-product' : ''}"${d ? ` style="--rc:${rar(d.r).color}"` : ''}>${p.tag ? `<span class="p-tag">${esc(p.tag)}</span>` : ''}
         <div class="p-ico">${d ? pv(d, 50) : p.icon}</div><div class="p-name">${esc(p.title)}</div>
         <div class="p-desc">${esc(p.desc)}${left != null ? `<br><b style="color:var(--gold)">Осталось ${left} шт.</b>` : ''}</div>
         <button class="btn btn-stars" data-buy="${p.id}" ${done || out ? 'disabled' : ''}>${done ? 'Куплено' : out ? 'Распродано' : '⭐ ' + p.stars}</button></div>`;
     };
     body.innerHTML = `<div class="hero-deal pink"><span class="h-ico">⭐</span><div class="h-text"><b>Поддержите игру через Telegram Stars</b><small>Оплата картой или Apple/Google Pay прямо в Telegram</small></div></div>
+      <p class="section-label">☢️ Легендарные бустеры</p><p class="muted tiny" style="margin:-4px 0 8px">Мощные, эффектные, не тратят ходы. Очень редко выпадают и в игре!</p><div class="shop-grid">${P.filter((p) => p.legendary).map(prodCard).join('')}</div>
       <p class="section-label">★ Эксклюзивы (ограниченный тираж)</p><div class="shop-grid">${P.filter((p) => p.itemId).map(prodCard).join('')}</div>
       <p class="section-label">💠 Самоцветы — валюта маркета</p><div class="shop-grid">${P.filter((p) => p.grant.shards && !p.grant.soft && !p.itemId).map(prodCard).join('')}</div>
-      <p class="section-label">Наборы и VIP</p><div class="shop-grid">${P.filter((p) => !p.itemId && (p.grant.soft || p.grant.vipDays)).map(prodCard).join('')}</div>
+      <p class="section-label">Наборы и VIP</p><div class="shop-grid">${P.filter((p) => !p.itemId && !p.legendary && (p.grant.soft || p.grant.vipDays)).map(prodCard).join('')}</div>
       <p class="muted tiny" style="margin-top:14px">Самоцветы и предметы — игровые ценности, они не обмениваются на реальные деньги. Вопросы по оплате: команда /paysupport в боте.</p>`;
     qsa('[data-buy]', body).forEach((b) => b.addEventListener('click', () => buyStars(b.dataset.buy)));
   }
