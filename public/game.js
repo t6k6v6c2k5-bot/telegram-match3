@@ -212,7 +212,7 @@
     { id: 'stars', icon: '⭐', name: 'Звездочёт', stat: () => totalStars(), tiers: [10, 40, 100, 200, 400, 700] },
     { id: 'garden', icon: '🌳', name: 'Садовник', stat: () => state.stats.gardenBuilt, tiers: [3, 10, 25, 50, 100, 200] },
     { id: 'combo', icon: '🔥', name: 'Мастер комбо', stat: () => state.stats.bestCombo, tiers: [3, 5, 7, 9, 12, 15] },
-    { id: 'rich', icon: '🪙', name: 'Богач', stat: () => state.stats.coinsEarned, tiers: [1000, 5000, 20000, 60000, 150000, 400000] }
+    { id: 'rich', icon: '💵', name: 'Богач', stat: () => state.stats.coinsEarned, tiers: [1000, 5000, 20000, 60000, 150000, 400000] }
   ];
   const ACH_GEMS = [3, 5, 10, 15, 25, 40];
   const LOGIN_REWARDS = [{ coins: 100 }, { boosters: { hammer: 2 } }, { coins: 250 }, { gems: 5 }, { boosters: { rocket: 2 } }, { coins: 500 }, { gems: 15, boosters: { rainbow: 1 } }];
@@ -325,7 +325,7 @@
   function trySpend(currency, amount) {
     if (spend(currency, amount)) return true;
     Sound.nope(); haptic('error');
-    showToast(currency === 'gems' ? 'Не хватает кристаллов 💎' : 'Не хватает монет 🪙');
+    showToast(currency === 'gems' ? 'Не хватает кристаллов 💎' : 'Не хватает монет 💵');
     return false;
   }
   const hasInfiniteLives = () => state.infiniteLives || Date.now() < (state.infiniteUntil || 0) || !!(window.FBMarket && FBMarket.isVip());
@@ -380,7 +380,7 @@
   function rewardItems(rw) {
     const out = [];
     if (!rw) return out;
-    if (rw.coins) out.push(['🪙', '+' + fmt(rw.coins)]);
+    if (rw.coins) out.push(['💵', '+' + fmt(rw.coins)]);
     if (rw.gems) out.push(['💎', '+' + rw.gems]);
     if (rw.stars) out.push(['⭐', '+' + rw.stars]);
     if (rw.lives) out.push(['❤️', 'Все жизни']);
@@ -484,7 +484,7 @@
     closeModal('modalReward');
     const rw = rewardPending;
     rewardPending = null;
-    if (rw) { applyReward(rw); if (rw.coins) flyTo('🪙', 'hudCoins', 6); if (rw.gems) flyTo('💎', 'hudGems', 4); Sound.coin(); }
+    if (rw) { applyReward(rw); if (rw.coins) flyTo('💵', 'hudCoins', 6); if (rw.gems) flyTo('💎', 'hudGems', 4); Sound.coin(); }
     const r = rewardResolve; rewardResolve = null;
     if (r) r(true);
     updateBadges();
@@ -814,7 +814,7 @@
       if (introSel.has(k)) introSel.delete(k);
       else if ((state.boosters[k] || 0) > 0) introSel.add(k);
       else {
-        const ok = await confirmBox(`${BOOSTERS[k].icon} ${BOOSTERS[k].name}`, `${BOOSTERS[k].desc}. Появится на поле сразу при старте.`, `Купить за ${BOOSTERS[k].price} 🪙`);
+        const ok = await confirmBox(`${BOOSTERS[k].icon} ${BOOSTERS[k].name}`, `${BOOSTERS[k].desc}. Появится на поле сразу при старте.`, `Купить за ${BOOSTERS[k].price} 💵`);
         if (!ok || !trySpend('coins', BOOSTERS[k].price)) return;
         state.boosters[k] = (state.boosters[k] || 0) + 1; saveState(); introSel.add(k);
       }
@@ -1334,7 +1334,7 @@
     if (!board.st || board.busy || board.done || paused || board.arena) return;
     ensureAudio();
     if (!(state.boosters[k] > 0)) {
-      const ok = await confirmBox(`${BOOSTERS[k].icon} ${BOOSTERS[k].name}`, BOOSTERS[k].desc + '. Бустеры не тратят ходы!', `Купить за ${BOOSTERS[k].price} 🪙`);
+      const ok = await confirmBox(`${BOOSTERS[k].icon} ${BOOSTERS[k].name}`, BOOSTERS[k].desc + '. Бустеры не тратят ходы!', `Купить за ${BOOSTERS[k].price} 💵`);
       if (!ok || !trySpend('coins', BOOSTERS[k].price)) return;
       state.boosters[k] = (state.boosters[k] || 0) + 1; saveState(); Sound.coin(); renderBoosterBar();
       return;
@@ -1508,7 +1508,7 @@
   function showResult(r) {
     [1, 2, 3].forEach((i) => { $('rs' + i).className = 'rs' + (i === 2 ? ' rs-mid' : ''); });
     $('resultMoves').textContent = `Ходов: ${r.moves} · Очки: ${fmt(r.score)}`;
-    const pills = [['🪙', '+' + r.coins + (serverSettings.doubleRewards ? ' (×2)' : '')]];
+    const pills = [['💵', '+' + r.coins + (serverSettings.doubleRewards ? ' (×2)' : '')]];
     if (r.gained) pills.push(['⭐', '+' + r.gained + ' в Сад']);
     if (r.xp) pills.push(['🎟️', '+' + r.xp + ' XP']);
     $('resultRewards').innerHTML = pills.map(([i, t], k) => `<div class="reward-pill" style="animation-delay:${0.9 + k * 0.15}s">${i} ${esc(t)}</div>`).join('');
@@ -1667,7 +1667,7 @@
   function product(parent, o) {
     const card = el(`<div class="product ${o.cls || ''}">${o.tag ? `<span class="p-tag">${o.tag}</span>` : ''}${o.own ? `<span class="p-own">${o.own}</span>` : ''}
       <div class="p-ico">${o.icon}</div><div class="p-name">${esc(o.name)}</div><div class="p-desc">${o.desc || ''}</div>
-      <button class="btn ${o.btnCls || (o.currency === 'gems' ? 'btn-primary' : 'btn-gold')}" ${o.disabled ? 'disabled' : ''}>${o.btn || (o.price + (o.currency === 'gems' ? ' 💎' : ' 🪙'))}</button></div>`);
+      <button class="btn ${o.btnCls || (o.currency === 'gems' ? 'btn-primary' : 'btn-gold')}" ${o.disabled ? 'disabled' : ''}>${o.btn || (o.price + (o.currency === 'gems' ? ' 💎' : ' 💵'))}</button></div>`);
     card.querySelector('button').addEventListener('click', o.onClick);
     parent.appendChild(card);
     return card;
@@ -1685,7 +1685,7 @@
     g.querySelector('button').addEventListener('click', claimFreeGift);
     body.appendChild(g);
     if (!state.starterBought) {
-      const s = el(`<div class="hero-deal pink"><span class="h-ico">🚀</span><div class="h-text"><b>Стартовый набор</b><small>2000🪙 + по 3 каждого бустера + неоновая рамка</small></div><button class="btn btn-gold">49 💎</button></div>`);
+      const s = el(`<div class="hero-deal pink"><span class="h-ico">🚀</span><div class="h-text"><b>Стартовый набор</b><small>2000💵 + по 3 каждого бустера + неоновая рамка</small></div><button class="btn btn-gold">49 💎</button></div>`);
       s.querySelector('button').addEventListener('click', () => {
         if (!trySpend('gems', 49)) return;
         state.starterBought = true;
@@ -1761,7 +1761,7 @@
     else if (def.unlock && !def.price && !def.gems) { btn = '🔒'; btnCls = 'btn-ghost'; onClick = () => showToast('Открывается: ' + def.unlock); }
     else {
       const cur = def.gems ? 'gems' : 'coins', price = def.gems || def.price;
-      btn = price + (cur === 'gems' ? ' 💎' : ' 🪙'); btnCls = cur === 'gems' ? 'btn-primary' : 'btn-gold';
+      btn = price + (cur === 'gems' ? ' 💎' : ' 💵'); btnCls = cur === 'gems' ? 'btn-primary' : 'btn-gold';
       onClick = () => { if (!trySpend(cur, price)) return; ({ skin: state.ownedSkins, frame: state.ownedFrames, title: state.ownedTitles })[kind][key] = true; equip(kind, key); Sound.win(); rainConfetti(40); };
     }
     product(parent, { icon: preview, name: def.name, desc: def.unlock && !owned ? '🔓 ' + def.unlock : '', btn, btnCls, onClick, cls: kind === 'skin' ? 'skin-preview' : '' });
@@ -1789,7 +1789,7 @@
   function shopCurrency(body) {
     label(body, 'Кристаллы → монеты');
     const gr = grid(body);
-    [[10, 700], [30, 2400], [80, 7000]].forEach(([g, c], i) => product(gr, { icon: '🪙'.repeat(i + 1), name: fmt(c) + ' монет', desc: 'Обмен', price: g, currency: 'gems', tag: i === 2 ? '+25%' : '', onClick: () => buyAndGive(g, 'gems', { coins: c }, 'Обмен') }));
+    [[10, 700], [30, 2400], [80, 7000]].forEach(([g, c], i) => product(gr, { icon: '💵'.repeat(i + 1), name: fmt(c) + ' монет', desc: 'Обмен', price: g, currency: 'gems', tag: i === 2 ? '+25%' : '', onClick: () => buyAndGive(g, 'gems', { coins: c }, 'Обмен') }));
     label(body, 'Монеты → кристаллы');
     const g2 = grid(body);
     [[2000, 10], [9000, 50]].forEach(([c, g], i) => product(g2, { icon: '💎'.repeat(i + 1), name: g + ' кристаллов', desc: 'Обмен', price: c, currency: 'coins', onClick: () => buyAndGive(c, 'coins', { gems: g }, 'Обмен') }));
@@ -1822,7 +1822,7 @@
     body.innerHTML = '';
     if (questTab === 'daily') {
       if (!channelDone()) {
-        const ch = el(`<div class="hero-deal channel-deal"><span class="h-ico">📢</span><div class="h-text"><b>Разовое задание: подпишись на канал</b><small>Новости и промокоды · 💎20 + 🪙1000</small></div><button class="btn btn-gold">Выполнить</button></div>`);
+        const ch = el(`<div class="hero-deal channel-deal"><span class="h-ico">📢</span><div class="h-text"><b>Разовое задание: подпишись на канал</b><small>Новости и промокоды · 💎20 + 💵1000</small></div><button class="btn btn-gold">Выполнить</button></div>`);
         ch.querySelector('button').addEventListener('click', openChannel);
         body.appendChild(ch);
       }
@@ -2077,15 +2077,15 @@
       body.innerHTML = `<div class="big-emoji">🔥</div><h2>Испытание дня</h2>
         <p class="arena-stat">Ходов: <b>${d.moves}</b> · Очков: <b>${fmt(d.score)}</b></p>
         ${rank ? `<p class="arena-stat">Место в топе: <b>${rank}</b></p>` : ''}
-        ${d.isFirst ? '<div class="channel-reward"><span>🎁 Награда за участие:</span><b>🪙 200</b></div>' : ''}
+        ${d.isFirst ? '<div class="channel-reward"><span>🎁 Награда за участие:</span><b>💵 200</b></div>' : ''}
         <button class="btn btn-primary btn-big" data-close="modalArenaResult">Продолжить</button>`;
     } else {
       const st = d.duel, mine = st.mine, opp = mine === 'a' ? st.b : st.a;
       let text;
       if (st.status !== 'done') text = `<p class="muted">Ждём, пока сыграет соперник — результат придёт уведомлением от бота.</p>`;
       else if (!st.winner) text = `<p class="arena-stat">🤝 Ничья! Одинаковое число ходов.</p>`;
-      else if (st.winner === playerId) text = `<p class="arena-stat">🏆 Победа! +15💎 +500🪙</p>`;
-      else text = `<p class="arena-stat">Соперник оказался быстрее. +100🪙 в утешение</p>`;
+      else if (st.winner === playerId) text = `<p class="arena-stat">🏆 Победа! +15💎 +500💵</p>`;
+      else text = `<p class="arena-stat">Соперник оказался быстрее. +100💵 в утешение</p>`;
       body.innerHTML = `<div class="big-emoji">⚔️</div><h2>Дуэль ${opp ? 'с ' + esc(opp.name) : ''}</h2>
         <p class="arena-stat">Ваш результат: <b>${d.moves}</b> ход. · ${fmt(d.score)} очк.</p>${text}
         <button class="btn btn-primary btn-big" data-close="modalArenaResult">Продолжить</button>`;
@@ -2157,7 +2157,7 @@
     }[e.kind] || '';
     return who + txt;
   }
-  const FEED_ICO = { drop: '🎁', tradeup: '🧪', excl: '★', sale: '💰', level: '🏆', likes: '❤️', arena_daily: '🔥', duel: '⚔️' };
+  const FEED_ICO = { drop: '🎁', tradeup: '🧪', excl: '★', sale: '💵', level: '🏆', likes: '❤️', arena_daily: '🔥', duel: '⚔️' };
   let feedCache = [], feedIdx = 0, feedLoadedAt = 0, feedRot = null;
   async function loadFeed(force) {
     if (!force && Date.now() - feedLoadedAt < 60000) return feedCache;
@@ -2869,10 +2869,10 @@
       const s = r.data.stats;
       const stat = (l, v) => `<div class="a-stat"><small>${l}</small><b>${v}</b></div>`;
       body.innerHTML = `<div class="a-stats">${stat('👥 Игроков', s.totalUsers)}${stat('🆕 Новых сегодня', s.newToday)}${stat('🟢 DAU', s.dau)}${stat('📅 WAU', s.wau)}
-        ${stat('🚩 Ср. уровень', s.avgLevel)}${stat('🏔 Макс. уровень', s.maxLevel)}${stat('🪙 Монет', fmt(s.totalCoins))}${stat('💎 Кристаллов', fmt(s.totalGems))}
+        ${stat('🚩 Ср. уровень', s.avgLevel)}${stat('🏔 Макс. уровень', s.maxLevel)}${stat('💵 Монет', fmt(s.totalCoins))}${stat('💎 Кристаллов', fmt(s.totalGems))}
         ${stat('⭐ Звёзд', fmt(s.totalStars))}${stat('🚫 Банов', s.banned)}</div>
         <p class="section-label">🏆 Топ по уровню</p>${s.topLevel.map((p, i) => `<div class="a-player"><b>${i + 1}.</b><div class="ap-info"><b>${esc(p.name)}</b><small>ур. ${p.bestLevel} · ⭐${p.totalStars}</small></div></div>`).join('')}
-        <p class="section-label">💰 Топ богатых</p>${s.topRich.map((p, i) => `<div class="a-player"><b>${i + 1}.</b><div class="ap-info"><b>${esc(p.name)}</b><small>🪙${fmt(p.coins)} · 💎${p.gems}</small></div></div>`).join('')}
+        <p class="section-label">💵 Топ богатых</p>${s.topRich.map((p, i) => `<div class="a-player"><b>${i + 1}.</b><div class="ap-info"><b>${esc(p.name)}</b><small>💵${fmt(p.coins)} · 💎${p.gems}</small></div></div>`).join('')}
         <p class="section-label">📢 Рассылка всем</p>
         <textarea class="a-textarea" id="aMsg" placeholder="Текст (поддерживается HTML: <b>, <i>)"></textarea>
         <input class="a-input" id="aBtnText" value="🎮 Играть" placeholder="Текст кнопки" />
@@ -2905,7 +2905,7 @@
       const r = await api('/api/admin/settings?' + aqs());
       const g = r.ok ? r.data.settings.globalGift : null;
       body.innerHTML = `<p class="muted">Подарок получат <b>все игроки</b> при следующем входе (один раз каждый).</p>
-        ${g ? `<div class="a-card">Активный подарок: 🪙${g.coins} 💎${g.gems}${g.booster ? ' ' + BOOSTERS[g.booster].icon + '×' + g.boosterAmount : ''}<br><small class="muted">${esc(g.message)}</small><button class="btn btn-danger" id="aGiftClear">Отменить подарок</button></div>` : ''}
+        ${g ? `<div class="a-card">Активный подарок: 💵${g.coins} 💎${g.gems}${g.booster ? ' ' + BOOSTERS[g.booster].icon + '×' + g.boosterAmount : ''}<br><small class="muted">${esc(g.message)}</small><button class="btn btn-danger" id="aGiftClear">Отменить подарок</button></div>` : ''}
         <div class="a-field"><label>Монеты</label><input class="a-input" id="gCoins" type="number" value="500" /></div>
         <div class="a-field"><label>Кристаллы</label><input class="a-input" id="gGems" type="number" value="10" /></div>
         <div class="a-field"><label>Бустер</label><div class="a-row"><select class="a-select" id="gBooster"><option value="">— нет —</option>${BOOSTER_KEYS.map((k) => `<option value="${k}">${BOOSTERS[k].icon} ${BOOSTERS[k].name}</option>`).join('')}</select><input class="a-input" id="gBAmt" type="number" value="1" style="max-width:80px" /></div></div>
@@ -3058,7 +3058,7 @@
       $('aDouble').addEventListener('click', async () => { const res = await api('/api/admin/settings', { method: 'POST', body: abody({ doubleRewards: !s.doubleRewards }) }); if (res.ok) { serverSettings.doubleRewards = res.data.settings.doubleRewards; renderAdmin(); } else aErr(res); });
     } else {
       const cheats = [
-        ['+10 000 🪙', () => addCoins(10000)], ['+500 💎', () => { state.gems += 500; }],
+        ['+10 000 💵', () => addCoins(10000)], ['+500 💎', () => { state.gems += 500; }],
         ['+10 уровней 🔓', () => { state.unlockedLevel += 10; }], ['+30 ⭐ в Сад', () => { state.starsBank += 30; }],
         ['Бустеры +10 🚀', () => BOOSTER_KEYS.forEach((k) => { state.boosters[k] += 10; })],
         [state.infiniteLives ? '♾️ Жизни: ВКЛ' : '♾️ Жизни: выкл', () => { state.infiniteLives = !state.infiniteLives; }],
@@ -3075,7 +3075,7 @@
     if (!list) return;
     if (!r.ok) { aErr(r); return; }
     $('aCount').textContent = `Найдено: ${r.data.total}`;
-    list.innerHTML = r.data.players.length ? r.data.players.map((p) => `<div class="a-player ${p.id === adminSel ? 'sel' : ''}" data-id="${esc(p.id)}"><div class="avatar">${initialOf(p.name)}</div><div class="ap-info"><b>${esc(p.name)}${p.username ? ' · @' + esc(p.username) : ''}</b><small>ур. ${p.bestLevel} · 🪙${fmt(p.coins)} · 💎${p.gems}</small></div><span class="a-badge ${p.isBanned ? 'ban' : ''}">${p.isBanned ? '🚫 Бан' : 'Активен'}</span></div>`).join('') : '<p class="empty">Никого не найдено</p>';
+    list.innerHTML = r.data.players.length ? r.data.players.map((p) => `<div class="a-player ${p.id === adminSel ? 'sel' : ''}" data-id="${esc(p.id)}"><div class="avatar">${initialOf(p.name)}</div><div class="ap-info"><b>${esc(p.name)}${p.username ? ' · @' + esc(p.username) : ''}</b><small>ур. ${p.bestLevel} · 💵${fmt(p.coins)} · 💎${p.gems}</small></div><span class="a-badge ${p.isBanned ? 'ban' : ''}">${p.isBanned ? '🚫 Бан' : 'Активен'}</span></div>`).join('') : '<p class="empty">Никого не найдено</p>';
     qsa('.a-player', list).forEach((row) => row.addEventListener('click', () => { $('aSearch').value = row.dataset.id; adminSelect(row.dataset.id); }));
   }
   async function adminSelect(id) {
@@ -3092,8 +3092,9 @@
     card.innerHTML = `<div class="a-card">
       <b style="font-size:16px">${esc(p.name)}</b> ${p.username ? '<span class="muted">@' + esc(p.username) + '</span>' : ''}<br>
       <small class="muted">ID ${esc(p.id)} · с ${new Date(p.createdAt).toLocaleDateString('ru-RU')} · был ${new Date(p.lastSeen).toLocaleString('ru-RU')}</small><br>
-      <small>⭐ всего ${p.totalStars} · рефералов ${p.refCount} · ${p.isBanned ? '🚫 ЗАБАНЕН' : '✅ активен'}</small>
-      ${numField('🪙 Монеты (сейчас ' + p.coins + ')', 'fCoins', p.coins, '<button class="btn btn-green" data-a="coins-add">+ Добавить</button><button class="btn btn-gold" data-a="coins-set">=</button>')}
+      <small>⭐ всего ${p.totalStars} · рефералов ${p.refCount} · ${p.isBanned ? '🚫 ЗАБАНЕН' : '✅ активен'}</small><br>
+      <small>🌳 Сад на сервере: область ${(p.garden ? p.garden.area : 0) + 1}, построено областей ${p.garden ? p.garden.areasDone : 0}, в текущей ${p.garden && p.garden.built ? p.garden.built.length : 0} шт.</small>
+      ${numField('💵 Монеты (сейчас ' + p.coins + ')', 'fCoins', p.coins, '<button class="btn btn-green" data-a="coins-add">+ Добавить</button><button class="btn btn-gold" data-a="coins-set">=</button>')}
       ${numField('💎 Кристаллы (сейчас ' + p.gems + ')', 'fGems', p.gems, '<button class="btn btn-green" data-a="gems-add">+ Добавить</button><button class="btn btn-gold" data-a="gems-set">=</button>')}
       ${numField('❤️ Жизни', 'fLives', p.lives, '<button class="btn btn-gold" data-a="lives">Установить</button>')}
       ${numField('🚩 Открытый уровень', 'fLevel', p.bestLevel, '<button class="btn btn-gold" data-a="level">Установить</button>')}

@@ -1,14 +1,3 @@
-/* Крошечный самодельный шрифт из одного глифа — подменяет только символ монеты (U+1FA99).
-   На части систем (в частности, Windows в Telegram Desktop) этот эмодзи отсутствует в системном
-   шрифте и показывается пустым прямоугольником. unicode-range ограничивает подмену ТОЛЬКО этим
-   символом — весь остальной текст и эмодзи рендерятся как обычно. Работает и в HTML, и в plain-text
-   (toast/confirm), поскольку подмена происходит на уровне рендеринга шрифта, а не разметки. */
-@font-face {
-  font-family: 'FBCoinFix';
-  src: url(data:font/woff;base64,d09GRgABAAAAAAK0AAoAAAAAAwgAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAABPUy8yAAABZAAAAC4AAABgRadGp2NtYXAAAAGcAAAANQAAAFAAHvXlZ2x5ZgAAAdwAAABmAAAAjPybavJoZWFkAAAA9AAAADYAAAA2MLe2TGhoZWEAAAEsAAAAIAAAACQGnAIzaG10eAAAAZQAAAAIAAAACAVQAB5sb2NhAAAB1AAAAAYAAAAGAEYAAG1heHAAAAFMAAAAFwAAACAABgAzbmFtZQAAAkQAAABXAAAAZlRKqKdwb3N0AAACnAAAABUAAAArcG9yYwABAAAAAQAAHYGkNl8PPPUAAQPoAAAAAObduToAAAAA5t25OgCgACgDSALQAAAAAwACAAAAAAAAeJxjYGRgYN72n42BgekHgxyDEdMxBqAICmACAGNmA9V4nGNgZGBgYGIwZGBmYACz0AAABaUAOgB4nGNgZlrBOIGBlYGFgQjAhMS2BwIGhv9AwLztPxsDA/M2hl9oyhUYGABj7QnTAAACWAAAAvgAHnicY2BgYGaAYBkgyQiluYC0CQMLgwSQZgJCIPj/H4xBKnhAfKA6CGBkYPw1E4yBbADOVgfzAAAAAAAAAABGAAB4nGNgZljAoMHswXSBgZ9BgcGAgYHRRF1NWYmdTVREXMzYyNxM3UBUhF1JWUndxNTE3MjYSJwdTQGzh4/Pnj0+PhAytKjXzb0ITOjq65eU6OtDSMYauBIgCVNS1AtXoK8PAI2iItsAAHicLYhBCoAgFAXHEqJNREfoEB2gwAN4AxciH0RBEDx+Gs3iMfMAzYVioFi/HUwsvWaUXvtzsP8+sXGa+8mSjDTrQ42uYLh5yAipu9CweAKViKO8hk0M5AB4nGNgYsAPgPKMTCzJ+Zl5AATTAbUAAAA=) format('woff');
-  unicode-range: U+1FA99;
-  font-display: swap;
-}
 /* =====================================================================
    FRUIT BLITZ — стили
    ===================================================================== */
@@ -24,7 +13,7 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body {
   margin: 0; height: 100%; overflow: hidden; background: var(--bg1); color: var(--text);
-  font-family: 'FBCoinFix', -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI", Roboto, sans-serif;
   touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none;
 }
 button { font-family: inherit; color: inherit; border: none; background: none; cursor: pointer; padding: 0; }

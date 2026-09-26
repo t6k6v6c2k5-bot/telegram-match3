@@ -44,12 +44,12 @@
     I('sk_sport2', 'skin', 0, 'Дворовый спорт', ['⚽', '🏀', '🏈', '⚾', '🎾', '🏐']),
     I('sk_sea', 'skin', 1, 'Морские жители', ['🐠', '🐙', '🦀', '🐬', '🐡', '🦑']),
     I('sk_weather', 'skin', 1, 'Погода', ['☀️', '⛈️', '❄️', '🌈', '🌪️', '🌙']),
-    I('sk_gems', 'skin', 2, 'Сокровища', ['💎', '💍', '👑', '🔮', '🪙', '📿']),
+    I('sk_gems', 'skin', 2, 'Сокровища', ['💎', '💍', '👑', '🔮', '💵', '📿']),
     I('sk_food', 'skin', 2, 'Фастфуд', ['🍔', '🍕', '🌭', '🍟', '🌮', '🥪']),
     I('sk_space', 'skin', 3, 'Галактика', ['🪐', '🌟', '☄️', '🌍', '🌙', '👽']),
     I('sk_monsters', 'skin', 3, 'Монстры', ['👾', '👻', '🤖', '👹', '💀', '🎃']),
     I('sk_dragon', 'skin', 4, 'Драконье логово', ['🐉', '🔥', '🌋', '⚔️', '🛡️', '🏰']),
-    I('sk_royal', 'skin', 5, 'Королевский двор', ['👑', '💎', '🏆', '🌟', '💰', '🦄']),
+    I('sk_royal', 'skin', 5, 'Королевский двор', ['👑', '💎', '🏆', '🌟', '💵', '🦄']),
     I('sk_star', 'skin', 6, 'Звёздный принц', ['🌠', '⭐', '✨', '💫', '🌟', '☄️'], { stars: 400, limit: 500 }),
 
     // ---------- Фоны поля (два цвета градиента) ----------
@@ -112,9 +112,9 @@
     { id: 'sh330', title: '330 самоцветов', desc: '+10% бонус', stars: 150, grant: { shards: 330 }, icon: '💠', tag: '+10%' },
     { id: 'sh1200', title: '1 200 самоцветов', desc: '+20% бонус', stars: 500, grant: { shards: 1200 }, icon: '💠', tag: '+20%' },
     { id: 'sh4000', title: '4 000 самоцветов', desc: '+33% бонус', stars: 1500, grant: { shards: 4000 }, icon: '💠', tag: 'ВЫГОДА' },
-    { id: 'starter', title: 'Набор донатера', desc: '300💠 + 5000🪙 + по 5 бустеров + значок «Основатель»', stars: 99, grant: { shards: 300, item: 'bg_founder', soft: { coins: 5000, boosters: { hammer: 5, shuffle: 5, rocket: 5, bomb: 5, rainbow: 5 } } }, icon: '🎁', once: true, tag: 'ХИТ' },
+    { id: 'starter', title: 'Набор донатера', desc: '300💠 + 5000💵 + по 5 бустеров + значок «Основатель»', stars: 99, grant: { shards: 300, item: 'bg_founder', soft: { coins: 5000, boosters: { hammer: 5, shuffle: 5, rocket: 5, bomb: 5, rainbow: 5 } } }, icon: '🎁', once: true, tag: 'ХИТ' },
     { id: 'vip30', title: 'VIP на 30 дней', desc: 'Бесконечные жизни, +50% монет за уровни, VIP-значок', stars: 250, grant: { vipDays: 30 }, icon: '👑' },
-    { id: 'coins5k', title: 'Мешок монет', desc: '5 000 монет', stars: 25, grant: { soft: { coins: 5000 } }, icon: '🪙' },
+    { id: 'coins5k', title: 'Мешок монет', desc: '5 000 монет', stars: 25, grant: { soft: { coins: 5000 } }, icon: '💵' },
     { id: 'boost', title: 'Сундук бустеров', desc: 'По 10 каждого бустера', stars: 60, grant: { soft: { boosters: { hammer: 10, shuffle: 10, rocket: 10, bomb: 10, rainbow: 10 } } }, icon: '🧰' },
     // Легендарные бустеры — мощные и эффектные, не тратят ходы. Дорого специально: редкость — часть привлекательности.
     { id: 'leg_nuke', title: '☢️ Ядерный удар', desc: 'Полностью очищает поле одним взрывом. Эффектная анимация!', stars: 70, grant: { soft: { legendary: { nuke: 1 } } }, icon: '☢️', legendary: true },
