@@ -901,18 +901,14 @@
 
   function styleTile(el, t) {
     const emojis = skinEmojis();
-    const svgFruits = state.equippedSkin === 'classic'; // собственные «сочные» иконки только для базового скина
-    let cls = 'tile', emo = '', svgIdx = null;
+    let cls = 'tile', emo = '';
     if (t.t === 'ING') { cls += ' c-ing'; emo = '🥥'; }
     else if (t.s === 'rainbow') { cls += ' c-rb'; emo = '🌈'; }
-    else { cls += ' c' + t.t; if (svgFruits) svgIdx = t.t; else emo = emojis[t.t] || '❓'; if (t.s) cls += ' sp-' + t.s; }
+    else { cls += ' c' + t.t; emo = emojis[t.t] || '❓'; if (t.s) cls += ' sp-' + t.s; }
     el.className = cls;
-    const emoEl = el.querySelector('.emo');
-    el.classList.toggle('svgfruit', svgIdx != null);
-    if (svgIdx != null) emoEl.innerHTML = `<svg class="fruit-svg" viewBox="0 0 100 100">${fruitSvgMarkup(svgIdx, t.id != null ? t.id : (fruitUidSeq++))}</svg>`;
-    else emoEl.textContent = emo;
+    el.querySelector('.emo').textContent = emo;
     el.style.width = el.style.height = board.cell + 'px';
-    el.style.setProperty('--emo', Math.round(board.cell * 0.56) + 'px');
+    el.style.setProperty('--emo', Math.round(board.cell * 0.72) + 'px'); // фрукт занимает больше места в клетке — лучше видно
   }
   function makeTile(t) {
     const el = document.createElement('div');
@@ -954,7 +950,7 @@
     if (!w || !h) return;
     const S = st.size;
     const side = Math.floor(Math.max(220, Math.min(w - 2, h - 2, 640)));
-    board.pad = 4; board.gap = S >= 8 ? 2 : 3;
+    board.pad = 3; board.gap = S >= 8 ? 1.5 : 2.5;
     board.cell = (side - board.pad * 2 - board.gap * (S - 1)) / S;
     board.side = side;
     board.el.style.width = board.el.style.height = side + 'px';

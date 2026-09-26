@@ -229,7 +229,7 @@ input, textarea, select { font-family: inherit; user-select: text; -webkit-user-
 
 /* ---------------- Игра ---------------- */
 #screenGame {
-  padding: 0 2px;
+  padding: 0;
   background:
     radial-gradient(ellipse 60% 36% at 12% 4%, rgba(255,150,90,.20), transparent 62%),
     radial-gradient(ellipse 55% 40% at 90% 10%, rgba(130,100,255,.22), transparent 62%),
@@ -261,7 +261,7 @@ input, textarea, select { font-family: inherit; user-select: text; -webkit-user-
 .goal-chip.bump { animation: bump .35s ease; }
 .board-area { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
 .board {
-  position: relative; border-radius: 24px; padding: 4px; overflow: hidden; touch-action: none;
+  position: relative; border-radius: 22px; padding: 3px; overflow: hidden; touch-action: none;
   background: linear-gradient(160deg, #3d2278, #1d0f3f 55%, #130a2c);
   box-shadow:
     0 0 0 1px rgba(255,255,255,.10), 0 0 0 6px rgba(255,255,255,.09), 0 0 0 7px rgba(0,0,0,.4),
