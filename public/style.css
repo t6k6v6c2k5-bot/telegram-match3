@@ -868,3 +868,16 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .duel-friend small { font-size: 11px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arena-stat { font-size: 15px; margin: 6px 0; text-align: center; }
 #screenGame.arena-mode .star-meter, #screenGame.arena-mode .star-hint { display: none; }
+
+/* ---------------- «Сочные» фрукты: SVG-иконки + усиленные анимации ---------------- */
+.fruit-svg { display: block; width: var(--emo, 26px); height: var(--emo, 26px); filter: drop-shadow(0 2px 1px rgba(0,0,0,.35)); }
+.emo:has(.fruit-svg) { font-size: 0; } /* убираем зазор, оставшийся от текстового режима */
+.gem { animation: gem-breathe 2.6s ease-in-out infinite; }
+/* Нейтральная матовая подложка под собственные SVG-фрукты — цвет несёт сам фрукт, а не фон под ним */
+.tile.svgfruit .gem {
+  background: linear-gradient(155deg, rgba(255,255,255,.30), rgba(255,255,255,.06) 55%, rgba(0,0,0,.06));
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.14), inset 0 2px 3px rgba(255,255,255,.55), 0 3px 5px rgba(0,0,0,.3), inset 0 0 0 1px rgba(255,255,255,.18);
+}
+@keyframes gem-breathe { 50% { transform: scale(1.035); } }
+.ti.land { animation: tile-land .23s cubic-bezier(.3,1.6,.4,1); }
+@keyframes tile-land { 0% { transform: scale(1); } 25% { transform: scaleX(1.22) scaleY(.78); } 60% { transform: scaleX(.92) scaleY(1.1); } 100% { transform: scale(1); } }
