@@ -74,6 +74,8 @@ module.exports = function attachEconomy(ctx) {
   const newUid = () => crypto.randomBytes(6).toString('hex');
   const isLocked = (it) => (it.lockUntil || 0) > now();
   const shortName = (p) => (p ? String(p.name || 'Игрок').split(' ')[0].slice(0, 20) : 'Игрок');
+  // для HTML-сообщений бота: «<» или «&» в имени иначе ломают всё сообщение
+  const shortNameH = (p) => shortName(p).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
   function createItem(itemId, owner, o) {
     o = o || {};
@@ -401,7 +403,7 @@ module.exports = function attachEconomy(ctx) {
     const tr = { id: String(eco.nextTrade++), from: p.id, to: t.id, give, want, giveShards, wantShards, status: 'pending', at: now(), msg: String(req.body.msg || '').slice(0, 120) };
     eco.trades[tr.id] = tr;
     saveEco();
-    notify(t.id, `🔄 <b>${shortName(p)}</b> предлагает вам обмен в Fruit Blitz!\nОтдаёт: ${give.length} предм.${giveShards ? ' + ' + giveShards + ' 💠' : ''}\nПросит: ${want.length} предм.${wantShards ? ' + ' + wantShards + ' 💠' : ''}`);
+    notify(t.id, `🔄 <b>${shortNameH(p)}</b> предлагает вам обмен в Fruit Blitz!\nОтдаёт: ${give.length} предм.${giveShards ? ' + ' + giveShards + ' 💠' : ''}\nПросит: ${want.length} предм.${wantShards ? ' + ' + wantShards + ' 💠' : ''}`);
     res.json({ success: true, trade: tradeView(tr) });
   });
   app.post('/api/trade/respond', requireUser, (req, res) => {
@@ -411,7 +413,7 @@ module.exports = function attachEconomy(ctx) {
     const action = String(req.body.action || '');
     if (action === 'cancel') { if (tr.from !== p.id) return fail(res, 403, 'Нет доступа'); tr.status = 'canceled'; saveEco(); return res.json({ success: true, trade: tradeView(tr) }); }
     if (tr.to !== p.id) return fail(res, 403, 'Нет доступа');
-    if (action === 'decline') { tr.status = 'declined'; saveEco(); notify(tr.from, `❌ ${shortName(p)} отклонил(а) ваш обмен.`); return res.json({ success: true, trade: tradeView(tr) }); }
+    if (action === 'decline') { tr.status = 'declined'; saveEco(); notify(tr.from, `❌ ${shortNameH(p)} отклонил(а) ваш обмен.`); return res.json({ success: true, trade: tradeView(tr) }); }
     if (action !== 'accept') return fail(res, 400, 'Неизвестное действие');
     const from = ecoPlayer(tr.from);
     const err = checkSide(from.id, tr.give) || checkSide(p.id, tr.want);
@@ -424,7 +426,7 @@ module.exports = function attachEconomy(ctx) {
     p.shards += tr.giveShards - tr.wantShards;
     tr.status = 'done'; tr.doneAt = now();
     saveEco(); saveDB();
-    notify(from.id, `✅ ${shortName(p)} принял(а) ваш обмен!`);
+    notify(from.id, `✅ ${shortNameH(p)} принял(а) ваш обмен!`);
     res.json({ success: true, trade: tradeView(tr) });
   });
 
@@ -678,8 +680,10 @@ module.exports = function attachEconomy(ctx) {
     const auto = !show.length;
     if (auto) show = inventoryOf(t.id).map((it) => [it, itemValue(it, ctx)]).sort((a, b) => b[1] - a[1]).slice(0, 5).map((x) => x[0]);
     const me = String(req.user.id);
+    const tp = ecoPlayer(t.id);
+    const pub = Object.assign({}, t.pub || {}, { wins: tp.verifiedWins || 0 }); // побед — надёжный счётчик сервера, не то, что прислал клиент
     res.json({ success: true, profile: cardOf(t, {
-      bestLevel: t.bestLevel, totalStars: t.totalStars, createdAt: t.createdAt, lastSeen: t.lastSeen, pub: t.pub || {},
+      bestLevel: t.bestLevel, totalStars: t.totalStars, createdAt: t.createdAt, lastSeen: t.lastSeen, pub,
       vip: t.vipUntil > now(), passPremium: t.passSeason === Items.seasonInfo().id,
       collection: { value: col.value, count: col.count }, likes: likesOf(t.id), liked: !!(eco.likes[t.id] && eco.likes[t.id][me]),
       showcase: show.map((it) => Object.assign(view(it), { value: itemValue(it, ctx) })), autoShowcase: auto,
