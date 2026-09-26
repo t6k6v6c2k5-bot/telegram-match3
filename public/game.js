@@ -2747,7 +2747,7 @@
   function progressPayload() {
     return { telegram_id: playerId, name: tgUser ? tgUser.first_name : '', username: tgUser ? tgUser.username : '',
       level: state.unlockedLevel, totalStars: totalStars(), starsBank: state.starsBank, coins: state.coins, gems: state.gems,
-      lives: state.lives, boosters: state.boosters, legendary: state.legendary, score: state.stats.bestScore, adminRev: state.adminRev,
+      lives: state.lives, boosters: state.boosters, legendary: state.legendary, garden: state.garden, score: state.stats.bestScore, adminRev: state.adminRev,
       tz: -new Date().getTimezoneOffset(), timers: reminderTimers(), passUnclaimed: passClaimable(), pub: pubPayload() };
   }
   // Когда что-то снова станет доступно — сервер напомнит через бота, если игрок не зашёл сам
@@ -2798,6 +2798,7 @@
       state.unlockedLevel = sp.bestLevel; state.coins = sp.coins; state.gems = sp.gems; state.starsBank = sp.starsBank;
       BOOSTER_KEYS.forEach((k) => { state.boosters[k] = sp.boosters[k] || 0; });
       LEGENDARY_KEYS.forEach((k) => { state.legendary[k] = (sp.legendary && sp.legendary[k]) || 0; });
+      if (sp.garden) state.garden = { area: sp.garden.area || 0, areasDone: sp.garden.areasDone || 0, built: Array.isArray(sp.garden.built) ? sp.garden.built.slice() : [] };
       state.tutorialDone = true; state.tips = { swap: true, special: true, garden: true, boosters: true };
       state.adminRev = sp.adminRev || 0;
       showToast('☁️ Прогресс восстановлен из облака');
@@ -2810,6 +2811,7 @@
       state.unlockedLevel = Math.max(1, sp.bestLevel); state.starsBank = sp.starsBank;
       BOOSTER_KEYS.forEach((k) => { state.boosters[k] = sp.boosters[k] || 0; });
       LEGENDARY_KEYS.forEach((k) => { state.legendary[k] = (sp.legendary && sp.legendary[k]) || 0; });
+      if (sp.garden) state.garden = { area: sp.garden.area || 0, areasDone: sp.garden.areasDone || 0, built: Array.isArray(sp.garden.built) ? sp.garden.built.slice() : [] };
       state.adminRev = sp.adminRev;
       showToast('🎁 Ваш аккаунт обновлён');
       changed = true;
