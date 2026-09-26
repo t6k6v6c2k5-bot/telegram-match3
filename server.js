@@ -102,6 +102,11 @@ function normalizePlayer(p) {
   const lg = (p.legendary && typeof p.legendary === 'object') ? p.legendary : {};
   p.legendary = {};
   LEGENDARY_KEYS.forEach((k) => { p.legendary[k] = Math.max(0, Math.floor(num(lg[k], 0))); });
+  // Волшебный Сад — раньше жил только в localStorage конкретного устройства и не переживал смену
+  // телефон/десктоп; теперь зеркалим на сервере той же схемой доверия, что и boosters/legendary.
+  const gd = (p.garden && typeof p.garden === 'object') ? p.garden : {};
+  p.garden = { area: Math.max(0, Math.floor(num(gd.area, 0))), areasDone: Math.max(0, Math.floor(num(gd.areasDone, 0))),
+    built: Array.isArray(gd.built) ? gd.built.filter((x) => typeof x === 'number').slice(0, 20) : [] };
   p.isBanned = typeof p.isBanned === 'boolean' ? p.isBanned : !!p.banned;
   p.bannedAt = p.bannedAt || null;
   p.adminRev = Math.max(0, Math.floor(num(p.adminRev, 0)));
@@ -372,6 +377,11 @@ app.post('/api/save-progress', requireUser, (req, res) => {
   if (typeof b.score === 'number') p.bestScore = Math.max(p.bestScore, clampInt(b.score, 1e9));
   if (b.boosters && typeof b.boosters === 'object') BOOSTER_KEYS.forEach((k) => { if (typeof b.boosters[k] === 'number') p.boosters[k] = clampInt(b.boosters[k], 9999); });
   if (b.legendary && typeof b.legendary === 'object') LEGENDARY_KEYS.forEach((k) => { if (typeof b.legendary[k] === 'number') p.legendary[k] = clampInt(b.legendary[k], 999); });
+  if (b.garden && typeof b.garden === 'object') {
+    if (typeof b.garden.area === 'number') p.garden.area = clampInt(b.garden.area, 999);
+    if (typeof b.garden.areasDone === 'number') p.garden.areasDone = clampInt(b.garden.areasDone, 999);
+    if (Array.isArray(b.garden.built)) p.garden.built = b.garden.built.filter((x) => typeof x === 'number' && x >= 0 && x < 50).slice(0, 20);
+  }
   if (growth) growth.ingest(p, b);
   p.updatedAt = p.lastSeen = Date.now();
   saveDB();
@@ -422,6 +432,7 @@ app.post('/api/admin/action', requireAdmin, (req, res) => {
       Object.assign(p, { coins: 500, gems: 20, lives: 10, bestLevel: 1, bestScore: 0, totalStars: 0, starsBank: 0, resetToken: String(Date.now()) });
       BOOSTER_KEYS.forEach((k) => { p.boosters[k] = 0; });
       LEGENDARY_KEYS.forEach((k) => { p.legendary[k] = 0; });
+      p.garden = { area: 0, areasDone: 0, built: [] };
       break;
     default: return res.status(400).json({ success: false, error: 'Неизвестное действие' });
   }
