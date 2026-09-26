@@ -21,6 +21,8 @@ const ADMIN_IDS = String(process.env.ADMIN_ID || '').split(',').map((s) => s.tri
 // разработки) доверяем telegram_id из запроса. На проде с BOT_TOKEN всё проверяется подписью.
 const DEV_TRUST_IDS = !BOT_TOKEN || process.env.ALLOW_INSECURE_ADMIN === '1';
 const isAdminId = (id) => ADMIN_IDS.includes(String(id));
+// Имена игроков в сообщениях бота (parse_mode HTML) — иначе «<» или «&» в имени ломают всё сообщение
+const h = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /* ============================================================
    1. ХРАНИЛИЩЕ (data/players.json)
@@ -241,7 +243,7 @@ const adminSessions = {};
 function statsText() {
   const s = computeStats();
   let t = `📊 <b>Fruit Blitz — статистика</b>\n\n👥 Игроков: <b>${s.totalUsers}</b> (новых сегодня: ${s.newToday})\n🟢 DAU: <b>${s.dau}</b> · WAU: <b>${s.wau}</b>\n🚩 Средний уровень: <b>${s.avgLevel}</b> · макс: <b>${s.maxLevel}</b>\n🪙 Монет: <b>${s.totalCoins}</b> · 💎 Кристаллов: <b>${s.totalGems}</b>\n⭐ Звёзд: <b>${s.totalStars}</b> · 🚫 Банов: ${s.banned}\n\n🏆 <b>Топ по уровню:</b>\n`;
-  s.topLevel.forEach((p, i) => { t += `${i + 1}. ${p.name} — ур. ${p.bestLevel}, ⭐${p.totalStars}\n`; });
+  s.topLevel.forEach((p, i) => { t += `${i + 1}. ${h(p.name)} — ур. ${p.bestLevel}, ⭐${p.totalStars}\n`; });
   return t;
 }
 function adminKeyboard() {
@@ -272,7 +274,7 @@ if (!BOT_TOKEN) {
     saveDB();
     const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${from.id}`;
     const share = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('Залипательная игра «три в ряд» прямо в Telegram 🍓 Заходи!')}`;
-    const text = `Привет, ${from.first_name || 'друг'}! 🍓 Добро пожаловать в <b>Fruit Blitz</b>!\n\n` +
+    const text = `Привет, ${h(from.first_name || 'друг')}! 🍓 Добро пожаловать в <b>Fruit Blitz</b>!\n\n` +
       `🎯 Проходи уровни и собирай звёзды\n🌳 Строй свой волшебный Сад\n🎁 Открывай скины, рамки и сундуки\n👥 Приглашай друзей — +${REF_BONUS_COINS} 🪙 за каждого!`;
     bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
       [{ text: '🎮 Играть', web_app: { url: WEBAPP_URL } }],
@@ -303,7 +305,7 @@ if (!BOT_TOKEN) {
     if (q.data === 'leaderboard') {
       const top = leaderboard(10);
       const medals = ['🥇', '🥈', '🥉'];
-      const text = '🏆 <b>Топ-10 Fruit Blitz</b>\n\n' + (top.length ? top.map((p, i) => `${medals[i] || (i + 1) + '.'} ${p.name} — ур. ${p.bestLevel}, ⭐${p.totalStars}`).join('\n') : 'Пока пусто — стань первым!');
+      const text = '🏆 <b>Топ-10 Fruit Blitz</b>\n\n' + (top.length ? top.map((p, i) => `${medals[i] || (i + 1) + '.'} ${h(p.name)} — ур. ${p.bestLevel}, ⭐${p.totalStars}`).join('\n') : 'Пока пусто — стань первым!');
       bot.sendMessage(chatId, text, { parse_mode: 'HTML' }).catch(() => {});
     } else if (q.data.startsWith('admin_')) {
       if (!isAdminId(q.from.id)) return bot.answerCallbackQuery(q.id, { text: 'Доступ запрещён', show_alert: true }).catch(() => {});
