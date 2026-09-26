@@ -241,7 +241,7 @@
       boosters: { hammer: 3, shuffle: 2, rocket: 2, bomb: 1, rainbow: 1 },
       ownedSkins: { classic: true }, equippedSkin: 'classic',
       ownedFrames: { none: true }, equippedFrame: 'none',
-      ownedTitles: { novice: true }, equippedTitle: 'novice',
+      ownedTitles: { novice: true }, equippedTitle: 'novice', titleAuto: true,
       garden: { area: 0, built: [], areasDone: 0 },
       daily: null, login: { last: null, streak: 0 },
       wheelLast: 0, freeGiftLast: 0, starterBought: false, dealDay: null,
@@ -271,6 +271,8 @@
     if (!FRAMES[s.equippedFrame]) s.equippedFrame = 'none';
     s.ownedTitles = Object.assign({ novice: true }, raw.ownedTitles || {});
     if (!TITLES[s.equippedTitle]) s.equippedTitle = 'novice';
+    // историческим сохранениям (до автонадевания) считаем звание ручным, только если оно уже не «Новичок»
+    s.titleAuto = typeof raw.titleAuto === 'boolean' ? raw.titleAuto : s.equippedTitle === 'novice';
     s.garden = Object.assign({ area: 0, built: [], areasDone: 0 }, raw.garden || {});
     if (!Array.isArray(s.garden.built)) s.garden.built = [];
     s.tips = raw.tips || {}; s.achClaimed = raw.achClaimed || {}; s.claimedGifts = raw.claimedGifts || {};
@@ -358,7 +360,7 @@
     if (rw.boosters) Object.keys(rw.boosters).forEach((k) => { if (BOOSTERS[k]) state.boosters[k] = (state.boosters[k] || 0) + rw.boosters[k]; });
     if (rw.skin) state.ownedSkins[rw.skin] = true;
     if (rw.frame) state.ownedFrames[rw.frame] = true;
-    if (rw.title) state.ownedTitles[rw.title] = true;
+    if (rw.title) { state.ownedTitles[rw.title] = true; if (state.titleAuto) state.equippedTitle = rw.title; }
     saveState(); renderHud(); scheduleSync();
   }
   function rewardItems(rw) {
@@ -1344,7 +1346,7 @@
     dailyStat('wins', 1);
     if (gained) dailyStat('stars', gained);
     if (stars === 3) dailyStat('perfect', 1);
-    if (state.unlockedLevel > 50) state.ownedTitles.legend = true;
+    if (state.unlockedLevel > 50 && !state.ownedTitles.legend) { state.ownedTitles.legend = true; if (state.titleAuto) state.equippedTitle = 'legend'; }
     saveNow();
     scheduleSync(400);
     const xp = addPassXp(firstClear ? 20 + stars * 5 : 10);
@@ -1614,7 +1616,7 @@
   function equip(kind, key) {
     if (kind === 'skin') state.equippedSkin = key;
     if (kind === 'frame') state.equippedFrame = key;
-    if (kind === 'title') state.equippedTitle = key;
+    if (kind === 'title') { state.equippedTitle = key; state.titleAuto = false; }
     saveState(); Sound.select(); haptic('select'); renderShop();
     showToast('Применено!');
   }
@@ -1870,7 +1872,7 @@
   function pubPayload() {
     const t = TITLES[state.equippedTitle] || TITLES.novice;
     return { frame: state.equippedFrame, title: state.equippedTitle, titleName: t.name, titleIcon: t.icon, garden: state.garden.areasDone || 0, pass: passLevel(),
-      wins: state.stats.wins, perfects: state.stats.perfects, combo: state.stats.bestCombo, ach: Object.values(state.achClaimed).reduce((a, b) => a + (Number(b) || 0), 0),
+      wins: state.stats.wins, perfects: Object.values(state.levelStars).filter((v) => v === 3).length, combo: state.stats.bestCombo, ach: Object.values(state.achClaimed).reduce((a, b) => a + (Number(b) || 0), 0),
       photo: tgUser && tgUser.photo_url ? tgUser.photo_url : null };
   }
 
@@ -2894,6 +2896,7 @@
     get state() { return state; }, get isAdmin() { return isAdmin; }, get currentScreen() { return currentScreen; },
     refreshScreen() { if (currentScreen !== 'screenGame') showScreen(currentScreen); },
     renderShop() { if (currentScreen === 'screenShop') renderShop(); },
+    applyReward, equip,
     shareCard, track,
     onPaid() { if (!$('modalPass').classList.contains('hidden')) renderPass(); if (currentScreen === 'screenHome') renderHome(); }
   };
