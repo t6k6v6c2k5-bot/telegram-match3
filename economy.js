@@ -180,7 +180,7 @@ module.exports = function attachEconomy(ctx) {
       let r = null;
       if (a.k === 's') r = E.trySwap(st, P(a.a), P(a.b));
       else if (a.k === 't') r = E.activateSpecial(st, a.r | 0, a.c | 0);
-      else if (a.k === 'b' && ['hammer', 'shuffle', 'rocket', 'bomb', 'rainbow'].includes(a.b)) r = E.useBooster(st, a.b, a.r | 0, a.c | 0);
+      else if (a.k === 'b' && ['hammer', 'shuffle', 'rocket', 'bomb', 'rainbow', 'nuke', 'tornado', 'lightning'].includes(a.b)) r = E.useBooster(st, a.b, a.r | 0, a.c | 0);
       if (!r || !r.valid) return { ok: false, reason: 'invalid_move' };
     }
     if (!E.isComplete(st)) return { ok: false, reason: 'not_complete' };
@@ -216,6 +216,12 @@ module.exports = function attachEconomy(ctx) {
         const it = createItem(def.id, p.id, { shiny: rnd() < Items.SHINY_CHANCE, source: 'drop' });
         drop = view(it);
         feedItem(it, 'drop', { level: run.level });
+      }
+      // Очень редкий шанс легендарного бустера — независимо от обычного дропа, решает сервер
+      if (rnd() < 0.002) {
+        const pool = ['nuke', 'tornado', 'lightning'];
+        const k = pool[Math.floor(rnd() * pool.length)];
+        p.grants.push({ id: newUid(), rw: { legendary: { [k]: 1 } }, title: 'Редкая находка на поле!', at: now() });
       }
     }
     saveEco(); saveDB();

@@ -80,6 +80,7 @@ function writeJSON(file, data) {
 }
 
 const BOOSTER_KEYS = ['hammer', 'shuffle', 'rocket', 'bomb', 'rainbow'];
+const LEGENDARY_KEYS = ['nuke', 'tornado', 'lightning']; // редкие премиум-бустеры — Stars или очень редкий дроп
 const num = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
 /** Нормализация: чинит записи старых версий, ничего не удаляя */
@@ -98,6 +99,9 @@ function normalizePlayer(p) {
   p.boosters = {};
   BOOSTER_KEYS.forEach((k) => { p.boosters[k] = Math.max(0, Math.floor(num(b[k], 0))); });
   if (typeof b.rocketBoost === 'number') p.boosters.rocket += b.rocketBoost;
+  const lg = (p.legendary && typeof p.legendary === 'object') ? p.legendary : {};
+  p.legendary = {};
+  LEGENDARY_KEYS.forEach((k) => { p.legendary[k] = Math.max(0, Math.floor(num(lg[k], 0))); });
   p.isBanned = typeof p.isBanned === 'boolean' ? p.isBanned : !!p.banned;
   p.bannedAt = p.bannedAt || null;
   p.adminRev = Math.max(0, Math.floor(num(p.adminRev, 0)));
@@ -367,6 +371,7 @@ app.post('/api/save-progress', requireUser, (req, res) => {
   if (typeof b.starsBank === 'number') p.starsBank = clampInt(b.starsBank, 1e6);
   if (typeof b.score === 'number') p.bestScore = Math.max(p.bestScore, clampInt(b.score, 1e9));
   if (b.boosters && typeof b.boosters === 'object') BOOSTER_KEYS.forEach((k) => { if (typeof b.boosters[k] === 'number') p.boosters[k] = clampInt(b.boosters[k], 9999); });
+  if (b.legendary && typeof b.legendary === 'object') LEGENDARY_KEYS.forEach((k) => { if (typeof b.legendary[k] === 'number') p.legendary[k] = clampInt(b.legendary[k], 999); });
   if (growth) growth.ingest(p, b);
   p.updatedAt = p.lastSeen = Date.now();
   saveDB();
@@ -408,10 +413,15 @@ app.post('/api/admin/action', requireAdmin, (req, res) => {
       if (!BOOSTER_KEYS.includes(b.booster)) return res.status(400).json({ success: false, error: 'Неизвестный бустер' });
       p.boosters[b.booster] = Math.max(0, p.boosters[b.booster] + v); break;
     }
+    case 'give_legendary': {
+      if (!LEGENDARY_KEYS.includes(b.booster)) return res.status(400).json({ success: false, error: 'Неизвестный бустер' });
+      p.legendary[b.booster] = Math.max(0, p.legendary[b.booster] + v); break;
+    }
     case 'toggle_ban': p.isBanned = !!b.isBanned; p.bannedAt = p.isBanned ? Date.now() : null; break;
     case 'reset_progress':
       Object.assign(p, { coins: 500, gems: 20, lives: 10, bestLevel: 1, bestScore: 0, totalStars: 0, starsBank: 0, resetToken: String(Date.now()) });
       BOOSTER_KEYS.forEach((k) => { p.boosters[k] = 0; });
+      LEGENDARY_KEYS.forEach((k) => { p.legendary[k] = 0; });
       break;
     default: return res.status(400).json({ success: false, error: 'Неизвестное действие' });
   }
