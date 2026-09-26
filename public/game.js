@@ -506,6 +506,14 @@
     for (let i = 0; i < n; i++) fxParts.push({ x: Math.random() * window.innerWidth, y: -20 - Math.random() * 300, vx: (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 3, g: 0.04, s: 6 + Math.random() * 6, c: CONF_COLORS[i % CONF_COLORS.length], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.3, life: 1, decay: 0.004, rect: true });
     runFx();
   }
+  // Большой сочный всплеск капель во все стороны — на особо крупных комбо (3+)
+  function juiceBurst(x, y, colors, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 5 + Math.random() * 10;
+      fxParts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 4, g: 0.26, s: 4.5 + Math.random() * 5.5, c: colors[i % colors.length], life: 1, decay: 0.016 + Math.random() * 0.014, rect: false });
+    }
+    runFx();
+  }
   function sparks(x, y, color, n) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 4;
@@ -1058,13 +1066,18 @@
       haptic('heavy');
       board.el.classList.remove('shake'); void board.el.offsetWidth; board.el.classList.add('shake');
     } else { Sound.pop(s.combo); haptic(s.combo > 1 ? 'medium' : 'light'); }
+    let bx = 0, by = 0, bn = 0; const burstColors = [];
     for (const c of s.cleared) {
       const el = board.tiles.get(c.id);
       board.tiles.delete(c.id);
       if (el) { el.classList.add('pop'); setTimeout(() => el.remove(), 290); }
       const sp = screenPt(c.r, c.c);
-      sparks(sp.x, sp.y, (MK() && MK().fxColor()) || (typeof c.t === 'number' && c.t >= 0 ? TILE_HEX[c.t] : '#fff'), s.cleared.length > 20 ? 2 : 5);
+      const col = (MK() && MK().fxColor()) || (typeof c.t === 'number' && c.t >= 0 ? TILE_HEX[c.t] : '#fff');
+      sparks(sp.x, sp.y, col, s.cleared.length > 20 ? 2 : 5);
+      bx += sp.x; by += sp.y; bn++; burstColors.push(col);
     }
+    // Особо крупное комбо — добавляем большой всплеск капель во все стороны из центра собранной группы
+    if (s.combo >= 3 && bn) juiceBurst(bx / bn, by / bn, burstColors, Math.min(46, 14 + s.combo * 6));
     s.iceHits.forEach((h) => {
       const el = board.ice.get(E.K(h.r, h.c));
       if (!el) return;
