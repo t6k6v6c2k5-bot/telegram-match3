@@ -216,8 +216,8 @@ module.exports = function attachArena(ctx) {
       grant(d.winner, DUEL_WIN, '⚔️ Победа в дуэли!');
       grant(loser, DUEL_LOSE, '⚔️ Дуэль сыграна');
       const wp = players[d.winner], lp = players[loser];
-      notify(d.winner, `🏆 Вы победили в дуэли с <b>${lp ? (shortNameH ? shortNameH(lp) : lp.name) : '?'}</b>! +${DUEL_WIN.gems}💎 +${DUEL_WIN.coins}🪙`, arenaKb);
-      notify(loser, `⚔️ Дуэль с <b>${wp ? (shortNameH ? shortNameH(wp) : wp.name) : '?'}</b> завершена — победа за соперником. +${DUEL_LOSE.coins}🪙 в утешение`, arenaKb);
+      notify(d.winner, `🏆 Вы победили в дуэли с <b>${lp ? (shortNameH ? shortNameH(lp) : lp.name) : '?'}</b>! +${DUEL_WIN.gems}💎 +${DUEL_WIN.coins}💵`, arenaKb);
+      notify(loser, `⚔️ Дуэль с <b>${wp ? (shortNameH ? shortNameH(wp) : wp.name) : '?'}</b> завершена — победа за соперником. +${DUEL_LOSE.coins}💵 в утешение`, arenaKb);
       pushFeed && pushFeed(d.winner, 'duel', { vs: lp ? lp.name : '?' });
     } else {
       [d.a, d.b].forEach((u) => notify(u, '🤝 Дуэль завершена вничью — одинаковое число ходов!', arenaKb));

@@ -251,7 +251,7 @@ let bot = null;
 const adminSessions = {};
 function statsText() {
   const s = computeStats();
-  let t = `📊 <b>Fruit Blitz — статистика</b>\n\n👥 Игроков: <b>${s.totalUsers}</b> (новых сегодня: ${s.newToday})\n🟢 DAU: <b>${s.dau}</b> · WAU: <b>${s.wau}</b>\n🚩 Средний уровень: <b>${s.avgLevel}</b> · макс: <b>${s.maxLevel}</b>\n🪙 Монет: <b>${s.totalCoins}</b> · 💎 Кристаллов: <b>${s.totalGems}</b>\n⭐ Звёзд: <b>${s.totalStars}</b> · 🚫 Банов: ${s.banned}\n\n🏆 <b>Топ по уровню:</b>\n`;
+  let t = `📊 <b>Fruit Blitz — статистика</b>\n\n👥 Игроков: <b>${s.totalUsers}</b> (новых сегодня: ${s.newToday})\n🟢 DAU: <b>${s.dau}</b> · WAU: <b>${s.wau}</b>\n🚩 Средний уровень: <b>${s.avgLevel}</b> · макс: <b>${s.maxLevel}</b>\n💵 Монет: <b>${s.totalCoins}</b> · 💎 Кристаллов: <b>${s.totalGems}</b>\n⭐ Звёзд: <b>${s.totalStars}</b> · 🚫 Банов: ${s.banned}\n\n🏆 <b>Топ по уровню:</b>\n`;
   s.topLevel.forEach((p, i) => { t += `${i + 1}. ${h(p.name)} — ур. ${p.bestLevel}, ⭐${p.totalStars}\n`; });
   return t;
 }
@@ -278,13 +278,13 @@ if (!BOT_TOKEN) {
     const payload = match && match[1] ? match[1].trim() : '';
     if (payload.startsWith('ref_')) {
       const r = creditReferral(from.id, payload.slice(4), { name: from.first_name, username: from.username });
-      if (r.credited) bot.sendMessage(payload.slice(4), `🎉 ${from.first_name || 'Друг'} присоединился по вашей ссылке! +${r.bonus} 🪙`).catch(() => {});
+      if (r.credited) bot.sendMessage(payload.slice(4), `🎉 ${from.first_name || 'Друг'} присоединился по вашей ссылке! +${r.bonus} 💵`).catch(() => {});
     }
     saveDB();
     const refLink = `https://t.me/${BOT_USERNAME}?start=ref_${from.id}`;
     const share = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('Залипательная игра «три в ряд» прямо в Telegram 🍓 Заходи!')}`;
     const text = `Привет, ${h(from.first_name || 'друг')}! 🍓 Добро пожаловать в <b>Fruit Blitz</b>!\n\n` +
-      `🎯 Проходи уровни и собирай звёзды\n🌳 Строй свой волшебный Сад\n🎁 Открывай скины, рамки и сундуки\n👥 Приглашай друзей — +${REF_BONUS_COINS} 🪙 за каждого!`;
+      `🎯 Проходи уровни и собирай звёзды\n🌳 Строй свой волшебный Сад\n🎁 Открывай скины, рамки и сундуки\n👥 Приглашай друзей — +${REF_BONUS_COINS} 💵 за каждого!`;
     bot.sendMessage(msg.chat.id, text, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
       [{ text: '🎮 Играть', web_app: { url: WEBAPP_URL } }],
       [{ text: '👥 Пригласить друга', url: share }, { text: '🏆 Рейтинг', callback_data: 'leaderboard' }],
