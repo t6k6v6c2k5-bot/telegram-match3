@@ -71,6 +71,12 @@
           <button class="home-tile" id="tileLeaders"><span class="tile-ico">🏆</span><b>Рейтинг</b><small>Топ игроков</small></button>
         </div>
 
+        <button class="teaser arena-teaser" id="arenaTeaser">
+          <span class="teaser-ico">🏟️</span>
+          <span class="teaser-text"><b>Арена</b><small id="arenaTeaserSub">Испытание дня и дуэли с друзьями</small></span>
+          <span class="teaser-cta">Открыть ›</span><i class="dot hidden" id="dotArena"></i>
+        </button>
+
         <button class="teaser channel-teaser hidden" id="channelTeaser">
           <span class="teaser-ico">📢</span>
           <span class="teaser-text"><b>Подпишись на новости</b><small>Ивенты, промокоды и обновления · 💎20 + 🪙1000</small></span>
@@ -161,6 +167,12 @@
       <div class="screen-head"><h2>💹 Маркет</h2><button class="chip shard-chip" id="mkShardsBtn">💠 <b id="mkShards">0</b> <span class="hud-plus">+</span></button></div>
       <div class="tabs" id="mkTabs"></div>
       <div class="screen-scroll" id="mkBody"></div>
+    </section>
+
+    <section id="screenArena" class="screen">
+      <div class="screen-head"><h2>🏟️ Арена</h2></div>
+      <div class="tabs" id="arenaTabs"></div>
+      <div class="screen-scroll" id="arenaBody"></div>
     </section>
 
     <section id="screenLeaders" class="screen">
@@ -340,6 +352,23 @@
       <button class="btn btn-primary btn-big" id="channelOpen">📢 Открыть канал</button>
       <button class="btn btn-green" id="channelCheck">✅ Я подписался — забрать награду</button>
       <p class="muted tiny" id="channelNote">Сначала подпишитесь, потом вернитесь в игру и нажмите «забрать»</p>
+    </div>
+  </div>
+
+  <div id="modalDuelPick" class="overlay hidden">
+    <div class="card">
+      <button class="modal-x" data-close="modalDuelPick">✕</button>
+      <h2>⚔️ Вызвать на дуэль</h2>
+      <p class="muted tiny">Один и тот же уровень для обоих. Победит тот, кто пройдёт за меньше ходов. Бустеры недоступны — только мастерство!</p>
+      <div class="duel-friends" id="duelFriends"></div>
+      <div class="a-row" style="margin-top:10px"><input class="a-input" id="duelTarget" placeholder="@username или ID игрока" style="flex:1" /><button class="btn btn-primary" id="duelSend">Вызвать</button></div>
+    </div>
+  </div>
+
+  <div id="modalArenaResult" class="overlay hidden">
+    <div class="card">
+      <button class="modal-x" data-close="modalArenaResult">✕</button>
+      <div id="arenaResultBody"></div>
     </div>
   </div>
 

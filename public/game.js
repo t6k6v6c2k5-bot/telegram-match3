@@ -396,7 +396,7 @@
   /* ============================================================
      4. ИНТЕРФЕЙС: экраны, модалки, тосты, эффекты
      ============================================================ */
-  const SCREENS = ['screenHome', 'screenMap', 'screenGame', 'screenShop', 'screenGarden', 'screenQuests', 'screenLeaders', 'screenMarket'];
+  const SCREENS = ['screenHome', 'screenMap', 'screenGame', 'screenShop', 'screenGarden', 'screenQuests', 'screenLeaders', 'screenMarket', 'screenArena'];
   const MK = () => window.FBMarket || null;
   let currentScreen = 'screenHome';
   let isAdmin = false;
@@ -575,6 +575,7 @@
   function gardenCanBuild() {
     renderPassTeaser();
     refreshFeedStrip();
+    refreshArena();
     $('channelTeaser').classList.toggle('hidden', channelDone());
     maybeChannelPromo();
     const area = gardenArea(state.garden.area);
@@ -1274,7 +1275,7 @@
     qsa('.booster', bar).forEach((b) => b.addEventListener('click', () => onBooster(b.dataset.k)));
   }
   async function onBooster(k) {
-    if (!board.st || board.busy || board.done || paused) return;
+    if (!board.st || board.busy || board.done || paused || board.arena) return;
     ensureAudio();
     if (!(state.boosters[k] > 0)) {
       const ok = await confirmBox(`${BOOSTERS[k].icon} ${BOOSTERS[k].name}`, BOOSTERS[k].desc + '. Бустеры не тратят ходы!', `Купить за ${BOOSTERS[k].price} 🪙`);
@@ -1327,7 +1328,7 @@
     qsa('.legendary', bar).forEach((b) => b.addEventListener('click', () => onLegendary(b.dataset.k)));
   }
   async function onLegendary(k) {
-    if (!board.st || board.busy || board.done || paused || !(state.legendary[k] > 0)) return;
+    if (!board.st || board.busy || board.done || paused || board.arena || !(state.legendary[k] > 0)) return;
     const L = LEGENDARY[k];
     const ok = await confirmBox(`${L.icon} ${L.name}`, L.desc + `. Осталось: ${state.legendary[k]}. Бустеры не тратят ходы!`, 'Применить');
     if (!ok) return;
@@ -1400,6 +1401,7 @@
     Sound.goal(); haptic('success');
     showBanner('Цель выполнена!', true);
     await wait(1000);
+    if (board.arena) { finishArena(); return; }
     const hasSpecial = () => board.st && board.st.tiles.some((row) => row.some((t) => t && t.s));
     if (hasSpecial()) {
       showBanner('ФРУКТОВЫЙ ВЗРЫВ!', true);
@@ -1489,7 +1491,8 @@
     if (!board.st || board.done || board.busy) return;
     paused = true; clearHint();
     const costs = board.st.moves > 0 && !hasInfiniteLives();
-    $('pauseInfo').textContent = costs ? 'Выход или перезапуск будет стоить 1 ❤️' : 'Жизнь не тратится, пока вы не сделали ход';
+    $('pauseInfo').textContent = board.arena ? 'Попытка будет засчитана как использованная' : costs ? 'Выход или перезапуск будет стоить 1 ❤️' : 'Жизнь не тратится, пока вы не сделали ход';
+    $('btnRestart').classList.toggle('hidden', !!board.arena);
     $('btnPauseSound').textContent = state.sound ? '🔊 Звук: вкл' : '🔇 Звук: выкл';
     openModal('modalPause');
   }
@@ -1497,13 +1500,16 @@
   $('btnResume').addEventListener('click', () => { closeModal('modalPause'); paused = false; scheduleHint(); });
   $('btnPauseSound').addEventListener('click', () => { state.sound = !state.sound; saveState(); $('btnPauseSound').textContent = state.sound ? '🔊 Звук: вкл' : '🔇 Звук: выкл'; });
   function leaveLevel() {
-    if (board.st && !board.done) track('lvl_quit', { n: board.level, moves: board.st.moves });
-    if (board.st && board.st.moves > 0 && !board.done) loseLife();
+    if (board.arena) { board.st = null; board.run = null; $('screenGame').classList.remove('arena-mode'); board.arena = null; }
+    else {
+      if (board.st && !board.done) track('lvl_quit', { n: board.level, moves: board.st.moves });
+      if (board.st && board.st.moves > 0 && !board.done) loseLife();
+    }
     board.st = null; paused = false; clearHint();
     closeModal('modalPause');
   }
   $('btnRestart').addEventListener('click', () => { const n = board.level; leaveLevel(); showScreen('screenMap'); openIntro(n); });
-  $('btnQuit').addEventListener('click', () => { leaveLevel(); showScreen('screenMap'); });
+  $('btnQuit').addEventListener('click', () => { const wasArena = !!board.arena; leaveLevel(); if (wasArena) openArena(); else showScreen('screenMap'); });
 
   /* ============================================================
      10. ВОЛШЕБНЫЙ САД (главная цель игры: звёзды → постройки → награды)
@@ -1863,6 +1869,176 @@
      14. РЕЙТИНГ
      ============================================================ */
   /* ============================================================
+     14f. АРЕНА: 🔥 Испытание дня и ⚔️ Дуэли
+     ============================================================ */
+  let arenaTab = 'daily', arenaDaily = null, arenaDuels = null, arenaBusy = false;
+  function leftShortArena(ms) { return ms <= 0 ? 'скоро обновится' : leftShort(ms); }
+  async function openArena() {
+    Sound.click();
+    showScreen('screenArena');
+    track('arena_open');
+    renderArenaTabs();
+    await refreshArena();
+  }
+  $('arenaTeaser').addEventListener('click', openArena);
+  function renderArenaTabs() {
+    $('arenaTabs').innerHTML = `<button class="tab ${arenaTab === 'daily' ? 'active' : ''}" data-atab2="daily">🔥 Испытание дня</button><button class="tab ${arenaTab === 'duels' ? 'active' : ''}" data-atab2="duels">⚔️ Дуэли</button>`;
+    qsa('[data-atab2]', $('arenaTabs')).forEach((b) => b.addEventListener('click', () => { arenaTab = b.dataset.atab2; Sound.select(); renderArenaTabs(); renderArenaBody(); }));
+  }
+  async function refreshArena() {
+    if (playerId === 'guest') { $('arenaBody').innerHTML = '<p class="empty">Арена доступна внутри Telegram 🙂</p>'; return; }
+    const [d, u] = await Promise.all([api('/api/arena/daily?' + userQS()), api('/api/arena/duels?' + userQS())]);
+    if (d.ok) arenaDaily = d.data;
+    if (u.ok) arenaDuels = u.data.duels;
+    updateArenaDot();
+    renderArenaBody();
+  }
+  function updateArenaDot() {
+    const incoming = (arenaDuels || []).filter((d) => d.status === 'pending' && d.mine === 'b').length;
+    const toPlay = (arenaDuels || []).filter((d) => d.canPlay).length;
+    const n = incoming + toPlay + ((arenaDaily && arenaDaily.attemptsLeft > 0 && !arenaDaily.best) ? 0 : 0);
+    $('dotArena').classList.toggle('hidden', !(incoming + toPlay));
+    $('arenaTeaserSub').textContent = incoming ? `⚔️ ${incoming} нов. вызов${incoming > 1 ? 'а' : ''}!` : arenaDaily && arenaDaily.best ? `🔥 Твой рекорд: ${arenaDaily.best.moves} ход.` : 'Испытание дня и дуэли с друзьями';
+  }
+  function renderArenaBody() {
+    const body = $('arenaBody');
+    if (arenaTab === 'daily') {
+      if (!arenaDaily) { body.innerHTML = '<p class="empty">Загрузка...</p>'; return; }
+      const D = arenaDaily, mine = D.top.find((x) => x.uid === playerId);
+      const podium = D.top.slice(0, 3);
+      body.innerHTML = `
+        <div class="arena-hero"><span class="arena-hero-ico">🔥</span><div><b>Испытание дня</b><small>Один уровень для всех · обновится через ${leftShortArena(D.endsAt - Date.now())}</small></div></div>
+        ${D.best ? `<div class="arena-best">Ваш лучший результат: <b>${D.best.moves} ход.</b> · ${fmt(D.best.score)} очк.${mine ? ` · место ${D.top.indexOf(mine) + 1}` : ''}</div>` : ''}
+        <button class="btn ${D.attemptsLeft ? 'btn-gold' : 'btn-ghost'} btn-big" id="arenaPlayDaily" ${D.attemptsLeft ? '' : 'disabled'}>${D.attemptsLeft ? `🎮 Играть (осталось ${D.attemptsLeft})` : '😴 Попытки на сегодня закончились'}</button>
+        <p class="section-label">🏆 Топ дня</p>
+        ${D.top.length ? D.top.map((p, i) => `<div class="lb-row ${p.uid === playerId ? 'me' : ''}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${avatarOf({ name: p.name, me: p.uid === playerId })}<span class="lb-name">${esc(p.name)}</span><span class="lb-val">${p.moves} ход.<br><small>${fmt(p.score)} очк.</small></span></div>`).join('') : '<p class="empty">Пока никто не играл — стань первым!</p>'}
+        ${D.yesterday ? `<p class="section-label">📅 Вчера</p>${D.yesterday.winners.map((w) => `<div class="an-row"><b>${['🥇', '🥈', '🥉'][w.rank - 1]} ${esc(w.name)}</b><span></span><span>${w.moves} ход.</span></div>`).join('') || '<p class="muted tiny">Никто не прошёл</p>'}` : ''}
+        <p class="muted tiny" style="margin-top:10px">Топ-3 получают призы автоматически на следующий день. Бустеры на арене недоступны — только мастерство!</p>`;
+      if ($('arenaPlayDaily')) $('arenaPlayDaily').addEventListener('click', () => startArena('daily'));
+    } else {
+      const list = arenaDuels || [];
+      const incoming = list.filter((d) => d.status === 'pending' && d.mine === 'b');
+      const toPlay = list.filter((d) => d.canPlay);
+      const waiting = list.filter((d) => d.status === 'active' && !d.canPlay);
+      const done = list.filter((d) => d.status === 'done' || d.status === 'declined' || d.status === 'expired');
+      const pendingMine = list.filter((d) => d.status === 'pending' && d.mine === 'a');
+      const row = (d) => {
+        const opp = d.mine === 'a' ? d.b : d.a;
+        const oppName = opp ? esc(opp.name) : '<i>ждём соперника</i>';
+        let right = '';
+        if (d.status === 'pending' && d.mine === 'b') right = `<button class="btn btn-gold btn-small" data-dresp="${d.id}:1">Принять</button><button class="btn btn-ghost btn-small" data-dresp="${d.id}:0">✕</button>`;
+        else if (d.status === 'pending' && d.mine === 'a') right = `<button class="btn btn-ghost btn-small" data-dcancel="${d.id}">Отменить</button>`;
+        else if (d.canPlay) right = `<button class="btn btn-gold btn-small" data-dplay="${d.id}">Играть</button>`;
+        else if (d.status === 'active') right = `<span class="muted tiny">ждём соперника</span>`;
+        else if (d.status === 'done') right = d.winner === playerId ? `<span class="chip vip">🏆 Победа</span>` : d.winner ? `<span class="chip">Поражение</span>` : `<span class="chip">Ничья</span>`;
+        else if (d.status === 'declined') right = `<span class="muted tiny">отклонена</span>`;
+        else if (d.status === 'expired') right = `<span class="muted tiny">истекла</span>`;
+        return `<div class="duel-row"><span class="duel-vs">⚔️ ${oppName}</span>${right}</div>`;
+      };
+      body.innerHTML = `
+        <button class="btn btn-primary btn-big" id="arenaChallenge">⚔️ Вызвать друга</button>
+        ${incoming.length ? `<p class="section-label">📨 Вам бросили вызов</p>${incoming.map(row).join('')}` : ''}
+        ${toPlay.length ? `<p class="section-label">🎮 Ваш ход</p>${toPlay.map(row).join('')}` : ''}
+        ${pendingMine.length ? `<p class="section-label">⏳ Ждём ответа</p>${pendingMine.map(row).join('')}` : ''}
+        ${waiting.length ? `<p class="section-label">⌛ В процессе</p>${waiting.map(row).join('')}` : ''}
+        ${done.length ? `<p class="section-label">📜 История</p>${done.map(row).join('')}` : ''}
+        ${!list.length ? '<p class="empty">Пока нет дуэлей — вызовите друга! 👆</p>' : ''}`;
+      $('arenaChallenge').addEventListener('click', () => openDuelPicker());
+      qsa('[data-dresp]', body).forEach((b) => b.addEventListener('click', () => { const [id, acc] = b.dataset.dresp.split(':'); respondDuel(id, acc === '1'); }));
+      qsa('[data-dcancel]', body).forEach((b) => b.addEventListener('click', () => cancelDuel(b.dataset.dcancel)));
+      qsa('[data-dplay]', body).forEach((b) => b.addEventListener('click', () => startArena('duel', b.dataset.dplay)));
+    }
+  }
+  async function openDuelPicker(prefillId) {
+    const top = (arenaDuels ? [] : []).length; // no-op placeholder to keep lints calm
+    const fr = await api('/api/social/top?' + new URLSearchParams({ telegram_id: playerId, by: 'friends' }));
+    const friends = fr.ok ? fr.data.list.filter((p) => p.id !== playerId) : [];
+    $('duelFriends').innerHTML = friends.length ? friends.map((p) => `<button class="duel-friend" data-fid="${p.id}">${avatarOf(p)}<small>${esc(p.name)}</small></button>`).join('')
+      : '<p class="muted tiny">Пригласите друзей, чтобы вызывать их быстрее — а пока можно ввести @username или ID ниже</p>';
+    qsa('[data-fid]', $('duelFriends')).forEach((b) => b.addEventListener('click', () => sendDuelChallenge(b.dataset.fid)));
+    $('duelTarget').value = prefillId || '';
+    openModal('modalDuelPick');
+  }
+  async function sendDuelChallenge(target) {
+    target = target || $('duelTarget').value;
+    if (!target) { showToast('Введите @username или ID'); return; }
+    const r = await api('/api/arena/duel/create', { method: 'POST', body: { telegram_id: playerId, target } });
+    if (!r.ok) { showToast('⚠️ ' + ((r.data && r.data.error) || 'Ошибка')); return; }
+    closeModal('modalDuelPick');
+    showToast('✅ Вызов отправлен!');
+    track('duel_create');
+    refreshArena();
+  }
+  $('duelSend').addEventListener('click', () => sendDuelChallenge());
+  async function respondDuel(id, accept) {
+    const r = await api('/api/arena/duel/respond', { method: 'POST', body: { telegram_id: playerId, id, accept } });
+    if (!r.ok) { showToast('⚠️ ' + ((r.data && r.data.error) || 'Ошибка')); return; }
+    showToast(accept ? '✅ Дуэль принята!' : 'Вызов отклонён');
+    refreshArena();
+  }
+  async function cancelDuel(id) {
+    const r = await api('/api/arena/duel/cancel', { method: 'POST', body: { telegram_id: playerId, id } });
+    if (r.ok) refreshArena();
+  }
+
+  async function startArena(kind, duelId) {
+    tickLives();
+    const r = await api(`/api/arena/${kind}/start`, { method: 'POST', body: { telegram_id: playerId, id: duelId } });
+    if (!r.ok) { showToast('⚠️ ' + ((r.data && r.data.error) || 'Ошибка')); return; }
+    board.arena = { kind, duelId, opponent: duelId && (arenaDuels || []).find((d) => d.id === duelId) };
+    board.level = 0;
+    board.cfg = E.levelConfig(r.data.tpl);
+    board.run = { id: r.data.runId, log: [] };
+    board.st = E.createBoard(board.cfg, { seed: r.data.seed });
+    board.done = false; board.busy = false; board.armed = null; board.selected = null; paused = false;
+    board.snap = { cleared: 0, specials: 0 };
+    board.t0 = Date.now();
+    board.goalPrev = board.st.goals.map((g) => g.count);
+    showScreen('screenGame');
+    $('screenGame').classList.add('arena-mode');
+    $('gameLevelNum').textContent = kind === 'daily' ? '🔥' : '⚔️';
+    $('boosterBar').innerHTML = ''; $('legendaryBar').classList.add('hidden');
+    buildBoardDom();
+    requestAnimationFrame(() => { layoutBoard(); renderGoals(true); });
+    updateGameHud();
+    const opp = board.arena.opponent;
+    showBanner(kind === 'daily' ? '🔥 Испытание дня — экономь ходы!' : `⚔️ Дуэль с ${esc((opp && opp.b && opp.b.name) || (opp && opp.a && opp.a.name) || 'соперником')}`);
+    scheduleHint();
+  }
+  async function finishArena() {
+    board.busy = false;
+    const kind = board.arena.kind;
+    const r = await api(`/api/arena/${kind}/finish`, { method: 'POST', body: { telegram_id: playerId, runId: board.run.id, id: board.arena.duelId, log: board.run.log } });
+    board.run = null;
+    if (!r.ok || !r.data || !r.data.verified) { showToast('⚠️ Результат не удалось подтвердить, попробуйте снова'); showScreen('screenArena'); return; }
+    track('arena_finish', { k: kind });
+    showArenaResult(kind, r.data);
+  }
+  function showArenaResult(kind, d) {
+    const body = $('arenaResultBody');
+    if (kind === 'daily') {
+      const rank = d.myRank;
+      body.innerHTML = `<div class="big-emoji">🔥</div><h2>Испытание дня</h2>
+        <p class="arena-stat">Ходов: <b>${d.moves}</b> · Очков: <b>${fmt(d.score)}</b></p>
+        ${rank ? `<p class="arena-stat">Место в топе: <b>${rank}</b></p>` : ''}
+        ${d.isFirst ? '<div class="channel-reward"><span>🎁 Награда за участие:</span><b>🪙 200</b></div>' : ''}
+        <button class="btn btn-primary btn-big" data-close="modalArenaResult">Продолжить</button>`;
+    } else {
+      const st = d.duel, mine = st.mine, opp = mine === 'a' ? st.b : st.a;
+      let text;
+      if (st.status !== 'done') text = `<p class="muted">Ждём, пока сыграет соперник — результат придёт уведомлением от бота.</p>`;
+      else if (!st.winner) text = `<p class="arena-stat">🤝 Ничья! Одинаковое число ходов.</p>`;
+      else if (st.winner === playerId) text = `<p class="arena-stat">🏆 Победа! +15💎 +500🪙</p>`;
+      else text = `<p class="arena-stat">Соперник оказался быстрее. +100🪙 в утешение</p>`;
+      body.innerHTML = `<div class="big-emoji">⚔️</div><h2>Дуэль ${opp ? 'с ' + esc(opp.name) : ''}</h2>
+        <p class="arena-stat">Ваш результат: <b>${d.moves}</b> ход. · ${fmt(d.score)} очк.</p>${text}
+        <button class="btn btn-primary btn-big" data-close="modalArenaResult">Продолжить</button>`;
+    }
+    openModal('modalArenaResult');
+    qsa('[data-close]', body).forEach((b) => b.addEventListener('click', () => { closeModal('modalArenaResult'); $('screenGame').classList.remove('arena-mode'); board.arena = null; openArena(); }));
+  }
+
+  /* ============================================================
      14. РЕЙТИНГИ, ПРОФИЛИ-ВИТРИНЫ, ЛЕНТА СОБЫТИЙ
      ============================================================ */
   const LB_TABS = [['level', '🚩 Уровень'], ['stars', '⭐ Звёзды'], ['collection', '💎 Коллекция'], ['likes', '❤️ Лайки'], ['friends', '👥 Друзья']];
@@ -1920,11 +2096,12 @@
     const who = withName === false ? '' : `<b>${esc(e.name)}</b>${e.badge ? ' ' + esc(e.badge) : ''}: `;
     const txt = {
       drop: `выпал ${item}`, tradeup: `контракт → ${item}`, excl: `эксклюзив ★ ${item}`,
-      sale: `покупка ${item} за ${fmt(e.price || 0)} 💠`, level: `пройдено ${e.n} уровней 🎉`, likes: `профиль набрал ${e.n} ❤️`
+      sale: `покупка ${item} за ${fmt(e.price || 0)} 💠`, level: `пройдено ${e.n} уровней 🎉`, likes: `профиль набрал ${e.n} ❤️`,
+      arena_daily: `🥇 победил(а) в испытании дня за ${e.moves} ход.`, duel: `⚔️ выиграл(а) дуэль у ${esc(e.vs || '?')}`
     }[e.kind] || '';
     return who + txt;
   }
-  const FEED_ICO = { drop: '🎁', tradeup: '🧪', excl: '★', sale: '💰', level: '🏆', likes: '❤️' };
+  const FEED_ICO = { drop: '🎁', tradeup: '🧪', excl: '★', sale: '💰', level: '🏆', likes: '❤️', arena_daily: '🔥', duel: '⚔️' };
   let feedCache = [], feedIdx = 0, feedLoadedAt = 0, feedRot = null;
   async function loadFeed(force) {
     if (!force && Date.now() - feedLoadedAt < 60000) return feedCache;
@@ -2009,7 +2186,7 @@
           <small>${online ? '<i class="on-dot"></i> в игре' : 'был(а) ' + agoText(p.lastSeen)}${p.username ? ' · @' + esc(p.username) : ''}</small>
           <div class="pf-chips">${p.vip ? '<span class="chip vip">👑 VIP</span>' : ''}${p.passPremium ? '<span class="chip">🎟️ Премиум</span>' : ''}${ranks}</div></div></div>
       <div class="pf-actions">${mine ? `<button class="btn btn-ghost" id="pfEdit">✏️ Витрина</button><button class="btn btn-primary" id="pfShare">📤 Поделиться</button>`
-        : `<button class="btn ${p.liked ? 'btn-primary' : 'btn-ghost'} pf-like" id="pfLike">${p.liked ? '❤️' : '🤍'} ${fmt(p.likes)}</button><button class="btn btn-ghost" id="pfTrade">🔁 Обмен</button>`}</div>
+        : `<button class="btn ${p.liked ? 'btn-primary' : 'btn-ghost'} pf-like" id="pfLike">${p.liked ? '❤️' : '🤍'} ${fmt(p.likes)}</button><button class="btn btn-ghost" id="pfDuel">⚔️ Вызвать</button><button class="btn btn-ghost" id="pfTrade">🔁 Обмен</button>`}</div>
       ${mine ? `<p class="muted tiny" style="text-align:center">❤️ ${fmt(p.likes)} — столько игроков лайкнули ваш профиль</p>` : ''}
       <p class="section-label">🏆 Витрина${p.autoShowcase && p.showcase.length ? ' <small class="muted">(лучшие предметы)</small>' : ''}</p>
       <div class="sc-row">${slots.join('')}</div>${detail}
@@ -2032,6 +2209,7 @@
       if (p.liked) { Sound.coin(); haptic('success'); const rc = b.getBoundingClientRect(); burstConfetti(rc.left + rc.width / 2, rc.top, 16); }
       renderProfile();
     });
+    if ($('pfDuel')) $('pfDuel').addEventListener('click', () => { closeModal('modalProfile'); openArena(); arenaTab = 'duels'; renderArenaTabs(); renderArenaBody(); openDuelPicker(p.id); });
     if ($('pfTrade')) $('pfTrade').addEventListener('click', () => {
       closeModal('modalProfile');
       if (MK() && MK().setTab) MK().setTab('trades');

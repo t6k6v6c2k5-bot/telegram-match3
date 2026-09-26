@@ -854,3 +854,17 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .product.legendary-product { position: relative; background: radial-gradient(circle at 50% 20%, rgba(255,90,60,.28), rgba(20,10,35,.9) 70%); border: 2px solid #ff8a5c; box-shadow: 0 0 18px rgba(255,90,60,.55); animation: legendary-glow 2.2s ease-in-out infinite; }
 @keyframes legendary-glow { 50% { box-shadow: 0 0 30px rgba(255,140,60,.85); border-color: #ffcf5c; } }
 .product.legendary-product .p-ico { font-size: 34px; filter: drop-shadow(0 0 8px rgba(255,140,60,.8)); }
+
+/* ---------------- Арена ---------------- */
+.arena-teaser { background: linear-gradient(135deg, rgba(255,111,60,.32), rgba(255,206,63,.15)); border-color: rgba(255,140,60,.5); }
+.arena-hero { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: linear-gradient(135deg, rgba(255,111,60,.28), rgba(255,206,63,.12)); border: 1px solid rgba(255,140,60,.4); margin-bottom: 10px; }
+.arena-hero-ico { font-size: 34px; }
+.arena-hero small { color: var(--muted); display: block; margin-top: 2px; }
+.arena-best { padding: 8px 12px; border-radius: 12px; background: rgba(0,0,0,.25); margin-bottom: 10px; font-size: 13px; }
+.duel-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--glass); border: 1px solid var(--border); margin-bottom: 6px; }
+.duel-vs { font-weight: 800; font-size: 13px; }
+.duel-friends { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px; }
+.duel-friend { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; width: 64px; }
+.duel-friend small { font-size: 11px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arena-stat { font-size: 15px; margin: 6px 0; text-align: center; }
+#screenGame.arena-mode .star-meter, #screenGame.arena-mode .star-hint { display: none; }
