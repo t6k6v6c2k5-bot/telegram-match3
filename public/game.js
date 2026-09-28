@@ -872,33 +872,6 @@
     el.style.left = (p.x - g) + 'px'; el.style.top = (p.y - g) + 'px';
     el.style.width = el.style.height = (board.cell + g * 2) + 'px';
   }
-  // «Сочные» векторные фрукты для базового скина. Каждая фишка — самодостаточный SVG
-  // со своими градиентами (важно: общий <defs> на весь документ ненадёжно рендерится
-  // при использовании <use> из разных SVG-корней — проверено на практике).
-  function fruitSvgMarkup(idx, uid) {
-    const id = (n) => `${n}-${uid}`;
-    const grads = {
-      apple: ['#ff9aa8', '#ff4d5e', '#c4102a'], lemon: ['#fff6b0', '#ffd93f', '#e8a400'],
-      grape: ['#d9a3ff', '#9a3fe0', '#6318a8'], berry: ['#9fd0ff', '#3f7fe0', '#1c4fb0'],
-      orange: ['#ffcf82', '#ff9a1f', '#d96e00'], lime: ['#d4f7a0', '#7fd93f', '#3f9e18']
-    };
-    const lin = (name, cid) => `<linearGradient id="${id(cid)}" x1="15%" y1="0%" x2="90%" y2="100%"><stop offset="0%" stop-color="${grads[name][0]}"/><stop offset="50%" stop-color="${grads[name][1]}"/><stop offset="100%" stop-color="${grads[name][2]}"/></linearGradient>`;
-    const leaf = `<linearGradient id="${id('g-leaf')}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#7fe085"/><stop offset="100%" stop-color="#2f9e3f"/></linearGradient>`;
-    const shine = `<radialGradient id="${id('shine')}" cx="32%" cy="24%" r="70%"><stop offset="0%" stop-color="#fff" stop-opacity=".95"/><stop offset="40%" stop-color="#fff" stop-opacity=".55"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>`;
-    const B = { // тела фруктов (без <defs>, ссылаются на id(...) выше)
-      0: `<path d="M50 30c-19 0-34 15-34 34s15 32 34 32 34-14 34-32-15-34-34-34z" fill="url(#${id('g-apple')})"/><path d="M50 30c-2-6-2-10 1-14" stroke="#7a3d1a" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M50 20c2-6 10-9 15-6 1 6-5 11-15 8z" fill="url(#${id('g-leaf')})"/><ellipse cx="38" cy="50" rx="15" ry="18" fill="url(#${id('shine')})"/>`,
-      1: `<path d="M50 22c22 0 38 13 38 28s-16 28-38 28-38-13-38-28 16-28 38-28z" fill="url(#${id('g-lemon')})"/><path d="M14 50c-3-1-6-3-6-6s3-4 6-3" stroke="#e8a400" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M86 50c3-1 6-3 6-6s-3-4-6-3" stroke="#e8a400" stroke-width="4" fill="none" stroke-linecap="round"/><ellipse cx="40" cy="38" rx="13" ry="9" fill="url(#${id('shine')})"/>`,
-      2: `<path d="M50 20c3-6 10-8 10-8" stroke="url(#${id('g-leaf')})" stroke-width="6" fill="none" stroke-linecap="round"/><g fill="url(#${id('g-grape')})"><circle cx="50" cy="30" r="13"/><circle cx="35" cy="45" r="14"/><circle cx="65" cy="45" r="14"/><circle cx="27" cy="63" r="13"/><circle cx="50" cy="65" r="14"/><circle cx="73" cy="63" r="13"/><circle cx="50" cy="83" r="12"/></g><ellipse cx="43" cy="40" rx="6" ry="5" fill="url(#${id('shine')})"/><ellipse cx="43" cy="58" rx="6" ry="5" fill="url(#${id('shine')})"/>`,
-      3: `<g fill="url(#${id('g-berry')})"><circle cx="36" cy="42" r="22"/><circle cx="66" cy="46" r="19"/><circle cx="50" cy="70" r="20"/></g><g stroke="#1c4fb0" stroke-width="2.2" fill="none" opacity=".8"><path d="M31 27l5 5M41 27l-5 5"/><path d="M62 32l4 4M70 32l-4 4"/><path d="M45 55l5 5M55 55l-5 5"/></g><ellipse cx="29" cy="34" rx="8" ry="6" fill="url(#${id('shine')})"/><ellipse cx="43" cy="62" rx="7" ry="5" fill="url(#${id('shine')})"/>`,
-      4: `<path d="M48 18c4-4 10-4 10 2-4 0-8 2-8 6" fill="url(#${id('g-leaf')})"/><circle cx="50" cy="52" r="34" fill="url(#${id('g-orange')})"/><g fill="#d96e00" opacity=".45"><circle cx="40" cy="35" r="1.6"/><circle cx="55" cy="30" r="1.6"/><circle cx="65" cy="42" r="1.6"/><circle cx="32" cy="50" r="1.6"/><circle cx="60" cy="60" r="1.6"/><circle cx="45" cy="65" r="1.6"/><circle cx="70" cy="58" r="1.6"/><circle cx="50" cy="45" r="1.6"/></g><ellipse cx="38" cy="40" rx="15" ry="12" fill="url(#${id('shine')})"/>`,
-      5: `<path d="M50 33c-18 0-33 14-33 33s15 32 33 32 33-14 33-32-15-33-33-33z" fill="url(#${id('g-lime')})"/><path d="M50 33c-2-6-2-10 1-14" stroke="#5a7a1a" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M50 23c2-6 10-9 15-6 1 6-5 11-15 8z" fill="url(#${id('g-leaf')})"/><ellipse cx="38" cy="53" rx="14" ry="17" fill="url(#${id('shine')})"/>`
-    };
-    const names = ['apple', 'lemon', 'grape', 'berry', 'orange', 'lime'];
-    const defs = `<defs>${lin(names[idx], 'g-' + names[idx])}${leaf}${shine}</defs>`;
-    return defs + B[idx];
-  }
-  let fruitUidSeq = 0;
-
   function styleTile(el, t) {
     const emojis = skinEmojis();
     let cls = 'tile', emo = '';
