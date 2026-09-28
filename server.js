@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression'); // gzip/br — существенно уменьшает вес JS/CSS/HTML на медленных сетях
 const TelegramBot = require('node-telegram-bot-api');
 
 /* ============================================================
@@ -336,6 +337,7 @@ if (!BOT_TOKEN) {
    ============================================================ */
 const app = express();
 app.use(cors());
+app.use(compression()); // сжимаем все ответы — game.js/style.css весят сотни КБ несжатыми
 const jsonSmall = express.json({ limit: '64kb' }), jsonBig = express.json({ limit: '3mb' });
 app.use((req, res, next) => (req.path === '/api/share/prepare' || req.path === '/api/admin/news/post' ? jsonBig : jsonSmall)(req, res, next)); // карточки «Поделиться» — картинки
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
