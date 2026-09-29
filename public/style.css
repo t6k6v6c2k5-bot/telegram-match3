@@ -881,3 +881,20 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 
 .ti.land { animation: tile-land .23s cubic-bezier(.3,1.6,.4,1); }
 @keyframes tile-land { 0% { transform: scale(1); } 25% { transform: scaleX(1.22) scaleY(.78); } 60% { transform: scaleX(.92) scaleY(1.1); } 100% { transform: scale(1); } }
+
+/* ---------------- Мировой Босс ---------------- */
+@keyframes boss-pulse { 0%,100% { box-shadow: 0 0 24px 4px rgba(255,60,80,.45); } 50% { box-shadow: 0 0 38px 8px rgba(255,60,80,.75); } }
+@keyframes boss-shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+@keyframes boss-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+.boss-banner { display: block; width: 100%; text-align: left; border-radius: 20px; padding: 14px 16px 12px;
+  background: radial-gradient(circle at 50% 0%, #5a1030, #22081c 75%); border: 2px solid rgba(255,90,110,.5);
+  animation: boss-pulse 2.6s ease-in-out infinite; }
+.boss-head { display: flex; justify-content: space-between; align-items: center; }
+.boss-head b { font-size: 15px; color: #fff; }
+.boss-timer { background: rgba(0,0,0,.4); border-radius: 10px; padding: 3px 9px; font-size: 11px; font-weight: 800; color: #ffd479; }
+.boss-monster { text-align: center; font-size: 52px; margin: 4px 0; animation: boss-float 3.2s ease-in-out infinite; filter: drop-shadow(0 8px 10px rgba(0,0,0,.5)); }
+.boss-hprow { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #ffb9c4; margin-bottom: 4px; }
+.boss-hpbar { height: 14px; border-radius: 8px; background: rgba(0,0,0,.5); overflow: hidden; border: 1px solid rgba(255,255,255,.15); position: relative; }
+.boss-hpfill { height: 100%; background: linear-gradient(90deg,#ff4d6a,#ff8a3c); border-radius: 8px; position: relative; transition: width .6s ease; }
+.boss-hpfill::after { content: ''; position: absolute; inset: 0; width: 40%; background: linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent); animation: boss-shine 2.4s linear infinite; }
+.boss-stats { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: #e2c9ff; }

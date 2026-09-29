@@ -23,7 +23,15 @@
     board: { name: 'Фон поля', icon: '🟪' },
     fx: { name: 'Эффект взрыва', icon: '💥' },
     frame: { name: 'Рамка аватара', icon: '🖼️' },
-    badge: { name: 'Значок', icon: '🏅' }
+    badge: { name: 'Значок', icon: '🏅' },
+    charm: { name: 'Артефакт', icon: '🍀' }
+  };
+  // Артефакты — единственный тип предметов, который реально влияет на геймплей, а не только на вид.
+  // Один слот (p.equip.charm) — носить можно только один артефакт одновременно.
+  const CHARM_EFFECTS = {
+    charm_luck: { name: 'Счастливая монета', desc: '+10% к шансу редкого предмета за уровень', icon: '🍀' },
+    charm_shield: { name: 'Второе дыхание', desc: 'Раз в день продолжить уровень бесплатно, без потери ❤️', icon: '🛡️' },
+    charm_crown: { name: 'Корона Изобилия', desc: '+5% монет за каждый пройденный уровень', icon: '👑' }
   };
 
   // Состояние предмета (аналог float в CS): чем меньше число, тем «свежее» и ценнее
@@ -91,6 +99,9 @@
 
     // ---------- Значки у имени ----------
     I('bg_seed', 'badge', 0, 'Росток', '🌱'),
+    I('charm_luck', 'charm', 4, 'Счастливая монета', '🍀', { stars: 150 }),
+    I('charm_shield', 'charm', 4, 'Второе дыхание', '🛡️', { stars: 150 }),
+    I('charm_crown', 'charm', 4, 'Корона Изобилия', '👑', { stars: 150 }),
     I('bg_apple', 'badge', 0, 'Яблочко', '🍎'),
     I('bg_clover', 'badge', 0, 'Клевер', '🍀'),
     I('bg_fox', 'badge', 1, 'Лис', '🦊'),
@@ -120,7 +131,7 @@
     { id: 'leg_nuke', title: '☢️ Ядерный удар', desc: 'Полностью очищает поле одним взрывом. Эффектная анимация!', stars: 70, grant: { soft: { legendary: { nuke: 1 } } }, icon: '☢️', legendary: true },
     { id: 'leg_tornado', title: '🌪️ Торнадо', desc: 'Сметает 3 случайные линии поля', stars: 40, grant: { soft: { legendary: { tornado: 1 } } }, icon: '🌪️', legendary: true },
     { id: 'leg_lightning', title: '⚡ Гнев Зевса', desc: '5 ударов молнии по случайным фруктам', stars: 40, grant: { soft: { legendary: { lightning: 1 } } }, icon: '⚡', legendary: true },
-    { id: 'leg_arsenal', title: '💥 Комплект разрушителя', desc: '☢️ Ядерный удар ×1 + 🌪️ Торнадо ×2 + ⚡ Гнев Зевса ×2 — выгоднее по отдельности', stars: 180, grant: { soft: { legendary: { nuke: 1, tornado: 2, lightning: 2 } } }, icon: '💥', legendary: true, tag: 'ВЫГОДА' }
+    { id: 'leg_arsenal', title: '💥 Комплект разрушителя', desc: '☢️ Ядерный удар ×1 + 🌪️ Торнадо ×2 + ⚡ Гнев Зевса ×2 — выгоднее по отдельности', stars: 180, grant: { soft: { legendary: { nuke: 1, tornado: 2, lightning: 2 } } }, icon: '💥', legendary: true, tag: 'ВЫГОДА' },
   ];
   // Сезонный пропуск: сезоны по 30 дней, общие для клиента и сервера
   const SEASON_EPOCH = Date.UTC(2026, 8, 25);
@@ -131,7 +142,7 @@
     return { id: n + 1, start, end: start + SEASON_MS };
   }
   STARS_PRODUCTS.push({ id: 'pass', title: 'Премиум-пропуск', desc: 'Вторая линия наград текущего сезона', stars: 150, grant: { pass: true }, icon: '🎟️', hidden: true });
-  ITEMS.filter((it) => it.stars).forEach((it) => STARS_PRODUCTS.push({ id: 'item_' + it.id, title: it.name, desc: 'Эксклюзивный предмет ★' + (it.limit ? ` · всего ${it.limit} шт.` : ''), stars: it.stars, grant: { item: it.id }, icon: '★', itemId: it.id }));
+  ITEMS.filter((it) => it.stars).forEach((it) => STARS_PRODUCTS.push({ id: 'item_' + it.id, title: it.name, desc: it.type === 'charm' ? CHARM_EFFECTS[it.id].desc : 'Эксклюзивный предмет ★' + (it.limit ? ` · всего ${it.limit} шт.` : ''), stars: it.stars, grant: { item: it.id }, icon: it.type === 'charm' ? it.data : '★', itemId: it.id }));
 
   function qualityOf(q) { return QUALITIES.find((x) => q < x.max) || QUALITIES[QUALITIES.length - 1]; }
   function rarityOf(r) { return RARITIES[r] || RARITIES[0]; }
@@ -146,5 +157,5 @@
     return -1;
   }
 
-  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, seasonInfo, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance };
+  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, seasonInfo, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance, CHARM_EFFECTS };
 }));

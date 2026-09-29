@@ -592,6 +592,7 @@
     renderPassTeaser();
     refreshFeedStrip();
     refreshArena();
+    refreshBoss();
     $('channelTeaser').classList.toggle('hidden', channelDone());
     maybeChannelPromo();
     const area = gardenArea(state.garden.area);
@@ -1457,6 +1458,7 @@
     let coins = firstClear ? 20 + stars * 10 + Math.min(80, Math.floor(n * 1.2)) : 10 + stars * 5;
     if (serverSettings.doubleRewards) coins *= 2;
     if (MK() && MK().isVip()) coins = Math.round(coins * 1.5);
+    if (MK() && MK().me && MK().me.equip && MK().me.equip.charm && MK().me.equip.charm.itemId === 'charm_crown') coins = Math.round(coins * 1.05);
     addCoins(coins);
     state.stats.wins++;
     state.stats.bestScore = Math.max(state.stats.bestScore, st.score);
@@ -1468,6 +1470,7 @@
     saveNow();
     scheduleSync(400);
     const xp = addPassXp(firstClear ? 20 + stars * 5 : 10);
+    setTimeout(refreshBoss, 900);
     track('lvl_win', { n, moves: st.moves, ms: Date.now() - (board.t0 || Date.now()), stars });
     lastResult = { n, stars, coins, gained, firstClear, moves: st.moves, par: st.par, score: st.score, xp };
     showResult(lastResult);
@@ -1518,6 +1521,8 @@
     const costs = board.st.moves > 0 && !hasInfiniteLives();
     $('pauseInfo').textContent = board.arena ? 'Попытка будет засчитана как использованная' : costs ? 'Выход или перезапуск будет стоить 1 ❤️' : 'Жизнь не тратится, пока вы не сделали ход';
     $('btnRestart').classList.toggle('hidden', !!board.arena);
+    const shieldOn = costs && !board.arena && MK() && MK().me && MK().me.equip && MK().me.equip.charm && MK().me.equip.charm.itemId === 'charm_shield';
+    $('btnCharmShield').classList.toggle('hidden', !shieldOn);
     $('btnPauseSound').textContent = state.sound ? '🔊 Звук: вкл' : '🔇 Звук: выкл';
     openModal('modalPause');
   }
@@ -1534,6 +1539,15 @@
     closeModal('modalPause');
   }
   $('btnRestart').addEventListener('click', () => { const n = board.level; leaveLevel(); showScreen('screenMap'); openIntro(n); });
+  $('btnCharmShield').addEventListener('click', async () => {
+    const btn = $('btnCharmShield'); btn.disabled = true; btn.textContent = '⏳ Проверяем...';
+    const r = await api('/api/eco/charm/continue', { method: 'POST', body: { telegram_id: playerId } });
+    btn.disabled = false; btn.textContent = '🛡️ Второе дыхание — продолжить без потери ❤️';
+    if (!r.ok) { showToast('⚠️ ' + ((r.data && r.data.error) || 'Не удалось')); return; }
+    closeModal('modalPause'); paused = false;
+    showToast('🛡️ Второе дыхание сработало — жизнь сохранена!');
+    track('charm_shield_used');
+  });
   $('btnQuit').addEventListener('click', () => { const wasArena = !!board.arena; leaveLevel(); if (wasArena) openArena(); else showScreen('screenMap'); });
 
   /* ============================================================
@@ -1894,6 +1908,58 @@
      14. РЕЙТИНГ
      ============================================================ */
   /* ============================================================
+     14g. МИРОВОЙ БОСС
+     ============================================================ */
+  let bossData = null, bossTimerInt = null;
+  async function refreshBoss() {
+    if (playerId === 'guest') return;
+    const r = await api('/api/boss/status?' + userQS());
+    if (!r.ok || !r.data) return;
+    const prevHp = bossData && bossData.boss.hp;
+    bossData = r.data;
+    renderBossBanner();
+    // Если между обновлениями босс добит (HP было >0, стало новым босс с maxHp==hp) — покажем итог по вкладу
+    // Общая модалка «Покупка получена!» уже покажет награду из грантов — ждём, пока она закроется,
+    // и только потом показываем свою (с топ-3 по урону), чтобы модалки не спорили друг с другом.
+    if (prevHp != null && prevHp > 0 && r.data.lastDefeated && !state.bossSeenDefeat) {
+      state.bossSeenDefeat = r.data.lastDefeated.id; saveState();
+      const waitAndShow = () => { if (!$('modalReward').classList.contains('hidden') || !$('modalArenaResult').classList.contains('hidden')) return setTimeout(waitAndShow, 500); showBossVictory(r.data.lastDefeated); };
+      setTimeout(waitAndShow, 800);
+    }
+  }
+  function bossTimeLeft(ms) {
+    if (ms <= 0) return 'время вышло';
+    const h = Math.floor(ms / 3600000), d = Math.floor(h / 24);
+    return d > 0 ? `${d} д ${h % 24} ч` : `${h} ч ${Math.floor(ms % 3600000 / 60000)} мин`;
+  }
+  function renderBossBanner() {
+    if (!bossData || !bossData.boss) { $('bossBanner').classList.add('hidden'); return; }
+    const b = bossData.boss;
+    $('bossBanner').classList.remove('hidden');
+    $('bossName').textContent = `${b.emoji} ${b.name}`;
+    $('bossMonster').textContent = b.emoji;
+    $('bossTimer').textContent = '⏳ ' + bossTimeLeft(b.endsAt - Date.now());
+    const pct = Math.max(0, Math.min(100, Math.round(b.hp / b.maxHp * 100)));
+    $('bossHpFill').style.width = pct + '%';
+    $('bossHpText').textContent = pct + '%';
+    $('bossParticipants').textContent = `👥 ${fmt(b.participants)} игроков`;
+    $('bossMyDmg').textContent = b.myDamage ? `Мой урон: ${fmt(b.myDamage)}${b.myRank ? ' (#' + b.myRank + ')' : ''}` : 'Атакуй, проходя уровни!';
+  }
+  function showBossVictory(h) {
+    const mine = h.top.find((x) => x.uid === playerId);
+    $('bossResultBody').innerHTML = `<div class="big-emoji">${h.defeated ? '🎉' : '⏳'}</div><h2>${esc(h.emoji)} ${esc(h.name)} ${h.defeated ? 'повержен!' : 'сбежал'}</h2>
+      <p class="arena-stat">${fmt(h.participants)} игроков атаковали вместе</p>
+      ${h.top.length ? `<p class="section-label">🏆 Топ по урону</p>${h.top.map((x, i) => `<div class="an-row"><b>${['🥇', '🥈', '🥉'][i]} ${esc(x.name)}</b><span></span><span>${fmt(x.dmg)}</span></div>`).join('')}` : ''}
+      ${mine ? `<p class="arena-stat">Ваш вклад: <b>${fmt(mine.dmg)}</b> 🎁 награда уже у вас в грантах</p>` : ''}
+      <button class="btn btn-primary btn-big" data-close="modalBossResult">Продолжить</button>`;
+    openModal('modalBossResult');
+    qsa('[data-close]', $('bossResultBody')).forEach((b2) => b2.addEventListener('click', () => closeModal('modalBossResult')));
+  }
+  $('bossBanner').addEventListener('click', () => { Sound.click(); if (currentScreen === 'screenHome') { $('btnHomePlay').scrollIntoView({ behavior: 'smooth' }); showToast('👊 Проходи уровни — каждый наносит урон боссу!'); } });
+  clearInterval(bossTimerInt);
+  bossTimerInt = setInterval(() => { if (bossData && bossData.boss) $('bossTimer').textContent = '⏳ ' + bossTimeLeft(bossData.boss.endsAt - Date.now()); }, 60000);
+
+  /* ============================================================
      14f. АРЕНА: 🔥 Испытание дня и ⚔️ Дуэли
      ============================================================ */
   let arenaTab = 'daily', arenaDaily = null, arenaDuels = null, arenaBusy = false;
@@ -2126,7 +2192,7 @@
     }[e.kind] || '';
     return who + txt;
   }
-  const FEED_ICO = { drop: '🎁', tradeup: '🧪', excl: '★', sale: '💵', level: '🏆', likes: '❤️', arena_daily: '🔥', duel: '⚔️' };
+  const FEED_ICO = { drop: '🎁', tradeup: '🧪', excl: '★', sale: '💵', level: '🏆', likes: '❤️', arena_daily: '🔥', duel: '⚔️', boss: '👑' };
   let feedCache = [], feedIdx = 0, feedLoadedAt = 0, feedRot = null;
   async function loadFeed(force) {
     if (!force && Date.now() - feedLoadedAt < 60000) return feedCache;

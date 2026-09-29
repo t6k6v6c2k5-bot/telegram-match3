@@ -41,6 +41,14 @@
         </div>
         <button class="feed-strip hidden" id="feedStrip"><span class="live-dot"></span><span class="feed-text" id="feedText"></span><span class="teaser-cta">›</span></button>
 
+        <button class="boss-banner hidden" id="bossBanner">
+          <div class="boss-head"><b id="bossName">Мировой Босс</b><span class="boss-timer" id="bossTimer">⏳</span></div>
+          <div class="boss-monster" id="bossMonster">👹</div>
+          <div class="boss-hprow"><span>HP БОССА</span><span id="bossHpText">100%</span></div>
+          <div class="boss-hpbar"><div class="boss-hpfill" id="bossHpFill"></div></div>
+          <div class="boss-stats"><span id="bossParticipants">👥 0 игроков</span><span id="bossMyDmg">Мой урон: 0</span></div>
+        </button>
+
         <div class="home-logo" aria-label="Fruit Blitz">
           <span class="logo-fruit f1">🍓</span>
           <h1><span class="lw1">FRUIT</span><span class="lw2">BLITZ</span></h1>
@@ -233,6 +241,7 @@
       <button class="btn btn-primary btn-big" id="btnResume">Продолжить</button>
       <button class="btn btn-ghost" id="btnPauseSound">🔊 Звук: вкл</button>
       <button class="btn btn-ghost" id="btnRestart">↻ Начать заново</button>
+      <button class="btn btn-gold hidden" id="btnCharmShield">🛡️ Второе дыхание — продолжить без потери ❤️</button>
       <button class="btn btn-danger" id="btnQuit">Выйти из уровня</button>
     </div>
   </div>
@@ -363,6 +372,13 @@
       <p class="muted tiny">Один и тот же уровень для обоих. Победит тот, кто пройдёт за меньше ходов. Бустеры недоступны — только мастерство!</p>
       <div class="duel-friends" id="duelFriends"></div>
       <div class="a-row" style="margin-top:10px"><input class="a-input" id="duelTarget" placeholder="@username или ID игрока" style="flex:1" /><button class="btn btn-primary" id="duelSend">Вызвать</button></div>
+    </div>
+  </div>
+
+  <div id="modalBossResult" class="overlay hidden">
+    <div class="card">
+      <button class="modal-x" data-close="modalBossResult">✕</button>
+      <div id="bossResultBody"></div>
     </div>
   </div>
 
