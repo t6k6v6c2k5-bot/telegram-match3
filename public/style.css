@@ -911,3 +911,7 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .stuck-offer .so-text b { font-size: 14px; display: block; }
 .stuck-offer .so-text small { color: var(--muted); font-size: 12px; }
 .stuck-offer .so-btn { margin: 4px 0 0; padding: 9px 20px; font-size: 13px; }
+
+/* ---------------- Предупреждение о заканчивающихся ходах ---------------- */
+.star-hint.warn { color: #ff6f6f; animation: warn-pulse 1s ease-in-out infinite; }
+@keyframes warn-pulse { 50% { opacity: .5; } }

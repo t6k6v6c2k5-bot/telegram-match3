@@ -893,6 +893,7 @@
     const run = MK() ? await MK().startRun(n, pre) : null;
     board.run = run ? { id: run.runId, log: [] } : null;
     board.st = E.createBoard(board.cfg, { preBoosters: pre, seed: run ? run.seed : undefined });
+    board.moveCap = Math.round(board.st.par * 3); // щедрый запас — втрое больше, чем нужно для 3⭐
     board.done = false; board.busy = false; board.armed = null; board.selected = null; paused = false;
     board.snap = { cleared: 0, specials: 0 };
     board.t0 = Date.now();
@@ -1015,7 +1016,8 @@
     $('smStar1').classList.add('on');
     $('smStar2').classList.toggle('on', stars >= 2);
     $('smStar3').classList.toggle('on', stars >= 3);
-    $('starHint').textContent = stars === 3 ? `⭐⭐⭐ — ещё ${th.three - st.moves} ход.` : stars === 2 ? `⭐⭐ — ещё ${th.two - st.moves} ход.` : 'Ходы не ограничены — доведи до конца!';
+    $('starHint').textContent = stars === 3 ? `⭐⭐⭐ — ещё ${th.three - st.moves} ход.` : stars === 2 ? `⭐⭐ — ещё ${th.two - st.moves} ход.` : board.moveCap ? `⚠️ Осталось ${Math.max(0, board.moveCap - st.moves)} ход. до провала` : 'Ходы не ограничены — доведи до конца!';
+    $('starHint').classList.toggle('warn', stars < 2 && board.moveCap && board.moveCap - st.moves <= 5);
     renderGoals(false);
   }
   function showBanner(text, gold) {
@@ -1232,10 +1234,39 @@
     state.stats.bestCombo = Math.max(state.stats.bestCombo, board.turnCombo);
     saveState();
   }
+  async function levelFailed() {
+    board.done = true; board.busy = true;
+    clearHint(); clearSelection(); hideCoach();
+    Sound.nope(); haptic('error');
+    showBanner('Ходы закончились!');
+    await wait(900);
+    const left = board.st.goals.filter((g) => g.count > 0).length;
+    $('oomInfo').textContent = left ? `Осталось собрать: ${left} ${left === 1 ? 'цель' : 'цели'}` : 'Ещё чуть-чуть!';
+    openModal('modalOutOfMoves');
+  }
+  function resumeAfterMoves(extra) {
+    board.moveCap += extra;
+    board.done = false; board.busy = false;
+    closeModal('modalOutOfMoves');
+    updateGameHud();
+    showToast(`+${extra} ходов — продолжаем!`);
+    scheduleHint();
+  }
+  $('btnOomAd').addEventListener('click', () => claimAdReward('moves', () => resumeAfterMoves(5)));
+  $('btnOomGems').addEventListener('click', () => { if (!trySpend('gems', 8)) return; resumeAfterMoves(5); });
+  $('btnOomQuit').addEventListener('click', () => {
+    closeModal('modalOutOfMoves');
+    track('lvl_fail', { n: board.level, moves: board.st ? board.st.moves : 0 });
+    if (!hasInfiniteLives()) loseLife();
+    board.st = null; board.run = null;
+    showScreen('screenMap');
+  });
+
   function afterTurn() {
     collectTurnStats();
     updateGameHud();
     if (!board.done && E.isComplete(board.st)) { levelComplete(); return; }
+    if (!board.done && board.moveCap && board.st.moves >= board.moveCap) { levelFailed(); return; }
     tutorialAfterTurn();
     scheduleHint();
   }
