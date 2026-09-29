@@ -31,7 +31,8 @@ module.exports = function attachEconomy(ctx) {
   };
   const ECO_FILE = path.join(DATA_DIR, 'economy.json');
   const BACKUP_DIR = path.join(DATA_DIR, 'backups');
-  const eco = Object.assign({ serials: {}, items: {}, listings: {}, sales: {}, trades: {}, payments: [], rolls: {}, once: {}, burned: 0, nextListing: 1, nextTrade: 1 }, loadJSON(ECO_FILE, {}));
+  const eco = Object.assign({ serials: {}, items: {}, listings: {}, sales: {}, trades: {}, payments: [], rolls: {}, once: {}, burned: 0, nextListing: 1, nextTrade: 1, charmUse: {} }, loadJSON(ECO_FILE, {}));
+  let bossHook = null; // подключается из server.js после инициализации boss.js
 
   // Индекс «владелец → предметы»
   const byOwner = new Map();
@@ -201,15 +202,19 @@ module.exports = function attachEconomy(ctx) {
     if (!r.ok) return res.json({ success: true, verified: false, reason: r.reason });
 
     p.verifiedWins++;
+    if (bossHook) bossHook(p.id, r.st.score, run.level); // урон Мировому Боссу — только для честно подтверждённых побед
     // Счётчик «Сияющего» скина: считаем собранные фрукты
     if (p.equip.skin && eco.items[p.equip.skin] && eco.items[p.equip.skin].shiny) eco.items[p.equip.skin].counter += r.st.stats.cleared || 0;
     // Розыгрыш дропа с дневным лимитом
     const day = new Date().toISOString().slice(0, 10);
     const rl = eco.rolls[p.id] && eco.rolls[p.id].day === day ? eco.rolls[p.id] : (eco.rolls[p.id] = { day, n: 0 });
     let drop = null;
+    // Артефакт «Счастливая монета» — +10% к шансу редкого предмета, пока экипирован
+    const hasCharm = (id) => p.equip.charm && eco.items[p.equip.charm] && eco.items[p.equip.charm].owner === p.id && eco.items[p.equip.charm].itemId === id;
+    const luckMult = hasCharm('charm_luck') ? 1.1 : 1;
     if (rl.n < CFG.dailyRolls) {
       rl.n++;
-      const rarity = Items.rollRarity(rnd, r.cfg.hard ? 2 : 1);
+      const rarity = Items.rollRarity(rnd, (r.cfg.hard ? 2 : 1) * luckMult);
       if (rarity >= 0) {
         const pool = Items.dropPool(rarity);
         const def = pool[crypto.randomInt(0, pool.length)];
@@ -255,6 +260,17 @@ module.exports = function attachEconomy(ctx) {
     const ids = new Set((req.body.ids || []).map(String));
     p.grants = p.grants.filter((g) => !ids.has(g.id));
     saveDB();
+    res.json({ success: true });
+  });
+  // Артефакт «Второе дыхание» — раз в день продолжить уровень без потери ❤️
+  app.post('/api/eco/charm/continue', requireUser, (req, res) => {
+    const p = ecoPlayer(req.user.id, req.user);
+    const hasShield = p.equip.charm && eco.items[p.equip.charm] && eco.items[p.equip.charm].owner === p.id && eco.items[p.equip.charm].itemId === 'charm_shield';
+    if (!hasShield) return fail(res, 400, 'Артефакт «Второе дыхание» не экипирован');
+    const day = new Date().toISOString().slice(0, 10);
+    if (eco.charmUse[p.id] === day) return fail(res, 429, 'Уже использовано сегодня — приходите завтра');
+    eco.charmUse[p.id] = day;
+    saveEco();
     res.json({ success: true });
   });
   app.post('/api/eco/equip', requireUser, (req, res) => {
@@ -740,5 +756,5 @@ module.exports = function attachEconomy(ctx) {
     return out;
   }
   function passBuyers() { const sid = Items.seasonInfo().id; return Object.values(players).filter((p) => p.passSeason === sid).length; }
-  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers, pushFeed, ingestPub, shortNameH };
+  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers, pushFeed, ingestPub, shortNameH, setBossHook: (fn) => { bossHook = fn; } };
 };

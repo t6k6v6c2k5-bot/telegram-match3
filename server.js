@@ -481,6 +481,9 @@ economy = require('./economy.js')({ app, requireUser, requireAdmin, getOrCreateP
 require('./news.js')({ app, requireAdmin, BOT_TOKEN, BOT_USERNAME, getBot: () => bot, settings, saveSettings, ADMIN_IDS });
 /* ---------------- Арена: испытание дня и дуэли ---------------- */
 require('./arena.js')({ app, requireUser, requireAdmin, players, saveDB, writeJSON, loadJSON, DATA_DIR, getBot: () => bot, WEBAPP_URL, BOT_USERNAME, pushFeed: economy && economy.pushFeed, shortNameH: economy && economy.shortNameH });
+/* ---------------- Мировой Босс ---------------- */
+const boss = require('./boss.js')({ app, requireUser, requireAdmin, players, writeJSON, loadJSON, DATA_DIR, pushFeed: economy && economy.pushFeed });
+if (economy) economy.setBossHook(boss.dealDamage);
 growth = require('./growth.js')({ app, requireUser, requireAdmin, players, saveDB, writeJSON, loadJSON, DATA_DIR, BOT_TOKEN, WEBAPP_URL, BOT_USERNAME, getBot: () => bot, getEconomy: () => economy, settings, saveSettings });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
