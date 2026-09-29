@@ -243,6 +243,7 @@ module.exports = function attachEconomy(ctx) {
     const rl = eco.rolls[p.id] && eco.rolls[p.id].day === day ? eco.rolls[p.id].n : 0;
     return {
       shards: p.shards, vipUntil: p.vipUntil, passSeason: p.passSeason, equip: equippedView(p), inventory: inv, trades, grants: p.grants,
+      adsTotal: p.adsTotal || 0,
       myListings: Object.values(eco.listings).filter((l) => l.seller === p.id).map((l) => Object.assign({}, l, { item: view(eco.items[l.uid]) })),
       verifiedWins: p.verifiedWins, rollsLeft: Math.max(0, CFG.dailyRolls - rl),
       cfg: { lockHours: CFG.lockHours, fee: CFG.fee, minWins: CFG.minWins, dailyRolls: CFG.dailyRolls },
@@ -263,6 +264,19 @@ module.exports = function attachEconomy(ctx) {
     res.json({ success: true });
   });
   // Артефакт «Второе дыхание» — раз в день продолжить уровень без потери ❤️
+  // Покупка ауры (или любого другого предмета с ценой в кристаллах) за игровую валюту, а не Stars.
+  // Кристаллы — валюта, которой доверяем клиенту (как и везде в игре: бустеры за монеты и т.п.) —
+  // проверку и списание делает клиент через trySpend() ДО вызова этого эндпоинта, здесь только выдача предмета.
+  app.post('/api/eco/buy-gems', requireUser, (req, res) => {
+    const p = ecoPlayer(req.user.id, req.user);
+    const itemId = String(req.body.itemId || '');
+    const def = Items.BY_ID[itemId];
+    if (!def || !def.gemPrice) return fail(res, 400, 'Этот предмет нельзя купить за кристаллы');
+    const it = createItem(itemId, p.id, { source: 'gems', lockHours: 0 });
+    feedItem(it, 'excl');
+    saveEco();
+    res.json({ success: true, uid: it.uid });
+  });
   app.post('/api/eco/charm/continue', requireUser, (req, res) => {
     const p = ecoPlayer(req.user.id, req.user);
     const hasShield = p.equip.charm && eco.items[p.equip.charm] && eco.items[p.equip.charm].owner === p.id && eco.items[p.equip.charm].itemId === 'charm_shield';
@@ -649,7 +663,8 @@ module.exports = function attachEconomy(ctx) {
   function cardOf(p, extra) {
     const pub = p.pub || {};
     const fr = p.equip && p.equip.frame && eco.items[p.equip.frame] && eco.items[p.equip.frame].owner === p.id ? eco.items[p.equip.frame].itemId : null;
-    return Object.assign({ id: p.id, name: p.name, username: p.username, badge: badgeOf(p.id), photo: pub.photo || null, frame: pub.frame || 'none', itemFrame: fr,
+    const au = p.equip && p.equip.aura && eco.items[p.equip.aura] && eco.items[p.equip.aura].owner === p.id ? eco.items[p.equip.aura].itemId : null;
+    return Object.assign({ id: p.id, name: p.name, username: p.username, badge: badgeOf(p.id), photo: pub.photo || null, frame: pub.frame || 'none', itemFrame: fr, itemAura: au,
       titleName: pub.titleName || '', titleIcon: pub.titleIcon || '' }, extra || {});
   }
 
@@ -756,5 +771,6 @@ module.exports = function attachEconomy(ctx) {
     return out;
   }
   function passBuyers() { const sid = Items.seasonInfo().id; return Object.values(players).filter((p) => p.passSeason === sid).length; }
-  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers, pushFeed, ingestPub, shortNameH, setBossHook: (fn) => { bossHook = fn; } };
+  return { flush, badgeOf, ecoPlayer, fulfill, productById, CFG, tgApi, revenueByDay, passBuyers, pushFeed, ingestPub, shortNameH, setBossHook: (fn) => { bossHook = fn; },
+    grantItem: (uid, itemId) => { const p = ecoPlayer(uid); const it = createItem(itemId, p.id, { source: 'milestone', lockHours: 0 }); feedItem(it, 'excl'); saveEco(); return it; } };
 };

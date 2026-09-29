@@ -377,8 +377,14 @@ app.post('/api/ads/claim', requireUser, (req, res) => {
   const used = p.adsClaims.n[kind] || 0;
   if (used >= AD_DAILY_LIMITS[kind]) return res.status(429).json({ success: false, error: 'На сегодня лимит исчерпан — приходите завтра' });
   p.adsClaims.n[kind] = used + 1;
+  // Пожизненный счётчик просмотров — за 15 выдаём статусную «Ауру Новичка» (один раз).
+  p.adsTotal = (p.adsTotal || 0) + 1;
+  let auraGranted = false;
+  if (p.adsTotal === 15 && !p.gotAuraBronze && economy) {
+    try { economy.grantItem(p.id, 'aura_bronze'); p.gotAuraBronze = true; auraGranted = true; } catch (e) { console.error('aura_bronze grant:', e.message); }
+  }
   saveDB();
-  res.json({ success: true, left: AD_DAILY_LIMITS[kind] - used - 1 });
+  res.json({ success: true, left: AD_DAILY_LIMITS[kind] - used - 1, adsTotal: p.adsTotal, auraGranted });
 });
 
 /* Игрок отправляет прогресс. Если админ успел изменить аккаунт после последней синхронизации
