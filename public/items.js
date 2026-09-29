@@ -24,7 +24,8 @@
     fx: { name: 'Эффект взрыва', icon: '💥' },
     frame: { name: 'Рамка аватара', icon: '🖼️' },
     badge: { name: 'Значок', icon: '🏅' },
-    charm: { name: 'Артефакт', icon: '🍀' }
+    charm: { name: 'Артефакт', icon: '🍀' },
+    aura: { name: 'Аура', icon: '✨' }
   };
   // Артефакты — единственный тип предметов, который реально влияет на геймплей, а не только на вид.
   // Один слот (p.equip.charm) — носить можно только один артефакт одновременно.
@@ -32,6 +33,14 @@
     charm_luck: { name: 'Счастливая монета', desc: '+10% к шансу редкого предмета за уровень', icon: '🍀' },
     charm_shield: { name: 'Второе дыхание', desc: 'Раз в день продолжить уровень бесплатно, без потери ❤️', icon: '🛡️' },
     charm_crown: { name: 'Корона Изобилия', desc: '+5% монет за каждый пройденный уровень', icon: '👑' }
+  };
+  // Ауры — чисто статусные, видны ВСЕМ в рейтинге и профиле (не только владельцу).
+  // По одной ауре на каждый способ получения: реклама, кристаллы, редкий дроп, донат.
+  const AURA_EFFECTS = {
+    aura_bronze: { name: 'Аура Новичка', desc: 'Светящееся кольцо вокруг аватара — видно всем в рейтинге и профиле', icon: '🥉', adsNeeded: 15 },
+    aura_silver: { name: 'Аура Искателя', desc: 'Более яркое кольцо с искрами вокруг аватара', icon: '🥈', gemPrice: 400 },
+    aura_gold: { name: 'Аура Чемпиона', desc: 'Золотое сияние с частицами — очень редкая находка', icon: '🥇' },
+    aura_legend: { name: 'Аура Легенды', desc: 'Переливающееся радужное сияние — самый престижный статус в игре', icon: '💎' }
   };
 
   // Состояние предмета (аналог float в CS): чем меньше число, тем «свежее» и ценнее
@@ -102,6 +111,10 @@
     I('charm_luck', 'charm', 4, 'Счастливая монета', '🍀', { stars: 150 }),
     I('charm_shield', 'charm', 4, 'Второе дыхание', '🛡️', { stars: 150 }),
     I('charm_crown', 'charm', 4, 'Корона Изобилия', '👑', { stars: 150 }),
+    I('aura_bronze', 'aura', 6, 'Аура Новичка', '🥉'),
+    I('aura_silver', 'aura', 6, 'Аура Искателя', '🥈', { gemPrice: 400 }),
+    I('aura_gold', 'aura', 5, 'Аура Чемпиона', '🥇'),
+    I('aura_legend', 'aura', 6, 'Аура Легенды', '💎', { stars: 250 }),
     I('bg_apple', 'badge', 0, 'Яблочко', '🍎'),
     I('bg_clover', 'badge', 0, 'Клевер', '🍀'),
     I('bg_fox', 'badge', 1, 'Лис', '🦊'),
@@ -157,5 +170,5 @@
     return -1;
   }
 
-  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, seasonInfo, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance, CHARM_EFFECTS };
+  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, seasonInfo, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance, CHARM_EFFECTS, AURA_EFFECTS };
 }));

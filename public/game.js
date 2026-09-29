@@ -1866,6 +1866,30 @@
     label(body, 'Звания');
     const g2 = grid(body);
     Object.keys(TITLES).forEach((k) => ownedCard(g2, 'title', k, TITLES[k], !!state.ownedTitles[k], state.equippedTitle === k, TITLES[k].icon));
+    label(body, '✨ Ауры — статус, видно всем в рейтинге и профиле');
+    const g3 = grid(body);
+    const myItems = (MK() && MK().me && MK().me.inventory) || [];
+    const owned = {};
+    myItems.forEach((it) => { if (it.type === 'aura') owned[it.itemId] = it; });
+    const equippedAuraId = MK() && MK().me && MK().me.equip && MK().me.equip.aura && MK().me.equip.aura.itemId;
+    const AURA = window.FBItems.AURA_EFFECTS;
+    ['aura_bronze', 'aura_silver', 'aura_gold', 'aura_legend'].forEach((id) => {
+      const def = AURA[id]; const have = owned[id];
+      const card = el(`<div class="product ${have ? '' : 'locked'}">
+        <div class="p-ico">${def.icon}</div><div class="p-name">${esc(def.name)}</div>
+        <div class="p-desc">${have ? esc(def.desc) : id === 'aura_bronze' ? `Смотрите рекламу: ${Math.min(15, (MK() && MK().me && MK().me.adsTotal) || 0)}/15` : id === 'aura_silver' ? 'Можно купить за кристаллы' : id === 'aura_gold' ? 'Очень редкая находка в игре' : 'Доступна в разделе ★ Донат'}</div>
+        <button class="btn ${have ? (equippedAuraId === id ? 'btn-ghost' : 'btn-primary') : 'btn-gold'}" ${!have && !def.gemPrice ? 'disabled' : ''}>${have ? (equippedAuraId === id ? 'Надета' : 'Надеть') : def.gemPrice ? def.gemPrice + ' 💎' : '🔒'}</button></div>`);
+      card.querySelector('button').addEventListener('click', async () => {
+        if (have) { if (equippedAuraId === id) return; const r = await api('/api/eco/equip', { method: 'POST', body: { telegram_id: playerId, slot: 'aura', uid: have.uid } }); if (r.ok) { Sound.select(); renderShop(); } return; }
+        if (!def.gemPrice) return;
+        if (!trySpend('gems', def.gemPrice)) return;
+        const r = await api('/api/eco/buy-gems', { method: 'POST', body: { telegram_id: playerId, itemId: id } });
+        if (!r.ok) { state.gems += def.gemPrice; saveState(); renderHud(); showToast('⚠️ ' + ((r.data && r.data.error) || 'Не удалось купить — кристаллы возвращены')); return; }
+        Sound.win(); haptic('success'); showToast(`${def.icon} ${def.name} — ваша!`);
+        renderShop();
+      });
+      g3.appendChild(card);
+    });
   }
   function shopCurrency(body) {
     label(body, 'Кристаллы → монеты');
@@ -2249,7 +2273,9 @@
     const d = p.itemFrame && window.FBItems.BY_ID[p.itemFrame];
     if (d) style = `style="border:3px solid transparent;box-shadow:0 0 12px ${d.data[0]};background:linear-gradient(#2c1660,#2c1660) padding-box, conic-gradient(${d.data.join(',')}) border-box"`;
     const fr = !d && p.frame && p.frame !== 'none' && FRAMES[p.frame] ? ' frame-' + p.frame : '';
-    return `<div class="avatar${fr} ${cls || ''}" ${style}>${inner}</div>`;
+    const myAura = MK() && MK().me && MK().me.equip && MK().me.equip.aura && MK().me.equip.aura.itemId;
+    const au = p.itemAura ? ' aura-' + p.itemAura.replace('aura_', '') : (p.me && myAura ? ' aura-' + myAura.replace('aura_', '') : '');
+    return `<div class="avatar${fr}${au} ${cls || ''}" ${style}>${inner}</div>`;
   }
   async function renderLeaders() {
     $('leadersTabs').innerHTML = LB_TABS.map(([k, n]) => `<button class="tab ${k === lbTab ? 'active' : ''}" data-lb="${k}">${n}</button>`).join('');

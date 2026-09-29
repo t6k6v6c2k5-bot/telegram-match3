@@ -915,3 +915,18 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 /* ---------------- Предупреждение о заканчивающихся ходах ---------------- */
 .star-hint.warn { color: #ff6f6f; animation: warn-pulse 1s ease-in-out infinite; }
 @keyframes warn-pulse { 50% { opacity: .5; } }
+
+/* ---------------- Ауры — статусное свечение вокруг аватара, видно всем ---------------- */
+@keyframes aura-pulse-bronze { 0%,100% { box-shadow: 0 0 8px 2px rgba(201,130,42,.7); } 50% { box-shadow: 0 0 14px 4px rgba(201,130,42,.95); } }
+@keyframes aura-pulse-silver { 0%,100% { box-shadow: 0 0 10px 3px rgba(143,216,255,.75); } 50% { box-shadow: 0 0 18px 6px rgba(143,216,255,1); } }
+@keyframes aura-pulse-gold { 0%,100% { box-shadow: 0 0 12px 4px rgba(255,210,63,.8); } 50% { box-shadow: 0 0 22px 8px rgba(255,210,63,1); } }
+@keyframes aura-spin-legend { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.avatar.aura-bronze { animation: aura-pulse-bronze 1.8s ease-in-out infinite; border-radius: 50%; }
+.avatar.aura-silver { animation: aura-pulse-silver 1.6s ease-in-out infinite; border-radius: 50%; }
+.avatar.aura-gold { animation: aura-pulse-gold 1.4s ease-in-out infinite; border-radius: 50%; }
+.avatar.aura-legend { position: relative; border-radius: 50%; }
+.avatar.aura-legend::before {
+  content: ''; position: absolute; inset: -5px; border-radius: 50%; z-index: -1;
+  background: conic-gradient(from 0deg, #ff4d6a, #ffd23f, #4fd97a, #4fc3ff, #b06aff, #ff4d6a);
+  animation: aura-spin-legend 3s linear infinite; filter: blur(3px);
+}
