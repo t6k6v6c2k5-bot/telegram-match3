@@ -898,3 +898,16 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .boss-hpfill { height: 100%; background: linear-gradient(90deg,#ff4d6a,#ff8a3c); border-radius: 8px; position: relative; transition: width .6s ease; }
 .boss-hpfill::after { content: ''; position: absolute; inset: 0; width: 40%; background: linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent); animation: boss-shine 2.4s linear infinite; }
 .boss-stats { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: #e2c9ff; }
+
+/* ---------------- Стартовый набор — самое первое, что видно в Донат-магазине ---------------- */
+.starter-hero { border: 2px solid rgba(255,210,63,.6); box-shadow: 0 0 26px rgba(255,90,160,.4); animation: starter-glow 2.4s ease-in-out infinite; }
+@keyframes starter-glow { 50% { box-shadow: 0 0 38px rgba(255,140,200,.65); } }
+.starter-hero .p-tag { position: absolute; top: 8px; right: 10px; left: auto; transform: none; background: var(--gold); color: #402400; border-radius: 8px; padding: 3px 9px; font-size: 10px; font-weight: 900; }
+
+/* ---------------- Контекстное предложение «застрял на уровне» ---------------- */
+.stuck-offer { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin: 10px 0; padding: 14px 16px; border-radius: 16px; background: linear-gradient(135deg, rgba(255,140,60,.22), rgba(255,255,255,.05)); border: 1px solid rgba(255,160,80,.45); }
+.stuck-offer .so-ico { font-size: 26px; }
+.stuck-offer .so-text { width: 100%; }
+.stuck-offer .so-text b { font-size: 14px; display: block; }
+.stuck-offer .so-text small { color: var(--muted); font-size: 12px; }
+.stuck-offer .so-btn { margin: 4px 0 0; padding: 9px 20px; font-size: 13px; }

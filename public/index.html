@@ -7,6 +7,7 @@
 <title>Fruit Blitz — Три в ряд</title>
 <link rel="stylesheet" href="style.css" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 </head>
 <body>
 
@@ -212,6 +213,7 @@
       <div class="intro-goals" id="introGoals"></div>
       <div class="intro-new hidden" id="introNew"></div>
       <div class="intro-stars" id="introStars"></div>
+      <div class="stuck-offer hidden" id="stuckOffer"></div>
       <p class="section-label">Стартовые бустеры</p>
       <div class="pre-boosters" id="preBoosters"></div>
       <button class="btn btn-primary btn-big" id="btnIntroPlay">▶ Играть</button>
@@ -257,6 +259,7 @@
         <div class="wheel-hub">🍓</div>
       </div>
       <button class="btn btn-primary btn-big" id="btnSpin">Крутить</button>
+      <button class="btn btn-green hidden" id="btnAdSpin">📺 Смотреть рекламу — доп. вращение</button>
     </div>
   </div>
 
@@ -279,6 +282,7 @@
       <p class="muted" id="noLivesTimer">Следующая жизнь скоро</p>
       <button class="btn btn-primary" id="btnRefillGems">Восполнить за 6 💎</button>
       <button class="btn btn-gold" id="btnRefillCoins">Восполнить за 250 💵</button>
+      <button class="btn btn-green hidden" id="btnAdLife">📺 Смотреть рекламу — +1 ❤️</button>
       <button class="btn btn-ghost" data-close="modalNoLives">Подождать</button>
     </div>
   </div>

@@ -524,11 +524,13 @@
         <div class="p-desc">${esc(p.desc)}${left != null ? `<br><b style="color:var(--gold)">Осталось ${left} шт.</b>` : ''}</div>
         <button class="btn btn-stars" data-buy="${p.id}" ${done || out ? 'disabled' : ''}>${done ? 'Куплено' : out ? 'Распродано' : '⭐ ' + p.stars}</button></div>`;
     };
-    body.innerHTML = `<div class="hero-deal pink"><span class="h-ico">⭐</span><div class="h-text"><b>Поддержите игру через Telegram Stars</b><small>Оплата картой или Apple/Google Pay прямо в Telegram</small></div></div>
+    const starter = P.find((p) => p.id === 'starter');
+    const starterDone = starter && once.has(starter.id);
+    body.innerHTML = `${starter && !starterDone ? `<div class="hero-deal pink starter-hero"><span class="p-tag">ТОЛЬКО ОДИН РАЗ</span><span class="h-ico">🎁</span><div class="h-text"><b>${esc(starter.title)}</b><small>${esc(starter.desc)}</small></div><button class="btn btn-stars" data-buy="${starter.id}">⭐ ${starter.stars}</button></div>` : ''}
+      <p class="section-label">Наборы и VIP</p><div class="shop-grid">${P.filter((p) => !p.itemId && !p.legendary && p.id !== 'starter' && (p.grant.soft || p.grant.vipDays)).map(prodCard).join('')}</div>
       <p class="section-label">☢️ Легендарные бустеры</p><p class="muted tiny" style="margin:-4px 0 8px">Мощные, эффектные, не тратят ходы. Очень редко выпадают и в игре!</p><div class="shop-grid">${P.filter((p) => p.legendary).map(prodCard).join('')}</div>
       <p class="section-label">★ Эксклюзивы (ограниченный тираж)</p><div class="shop-grid">${P.filter((p) => p.itemId).map(prodCard).join('')}</div>
       <p class="section-label">💠 Самоцветы — валюта маркета</p><div class="shop-grid">${P.filter((p) => p.grant.shards && !p.grant.soft && !p.itemId).map(prodCard).join('')}</div>
-      <p class="section-label">Наборы и VIP</p><div class="shop-grid">${P.filter((p) => !p.itemId && !p.legendary && (p.grant.soft || p.grant.vipDays)).map(prodCard).join('')}</div>
       <p class="muted tiny" style="margin-top:14px">Самоцветы и предметы — игровые ценности, они не обмениваются на реальные деньги. Вопросы по оплате: команда /paysupport в боте.</p>`;
     qsa('[data-buy]', body).forEach((b) => b.addEventListener('click', () => buyStars(b.dataset.buy)));
   }

@@ -15,6 +15,32 @@
   const mmss = (ms) => { const s = Math.max(0, Math.ceil(ms / 1000)); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const ss = s % 60; return h ? `${h}ч ${m}м` : `${m}:${String(ss).padStart(2, '0')}`; };
 
   /* ============================================================
+     0b. РЕКЛАМА ЗА ВОЗНАГРАЖДЕНИЕ (AdsGram)
+     ЗАПОЛНИТЕ СВОЙ blockId — получить на https://partner.adsgram.ai после регистрации.
+     Пока blockId не задан (пусто), реклама работает в тестовом режиме: вместо
+     настоящего ролика — секундная пауза, чтобы можно было проверить награды без сети.
+     ============================================================ */
+  const ADSGRAM_BLOCK_ID = '50856'; // Block ID из кабинета AdsGram (partner.adsgram.ai)
+  let AdController = null;
+  try { if (ADSGRAM_BLOCK_ID && window.Adsgram) AdController = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID }); } catch (e) { /* noop */ }
+  function watchAd() {
+    if (AdController) return AdController.show().then(() => true).catch(() => false);
+    console.warn('AdsGram: blockId не задан — тестовый режим (без реальной рекламы)');
+    return wait(1200).then(() => true);
+  }
+  // kind: 'life' | 'wheel' | 'gift'. Сервер отдаёт лимит попыток в сутки на каждый тип —
+  // если лимит исчерпан, рекламу даже не показываем (не тратим показ впустую).
+  async function claimAdReward(kind, onReward) {
+    if (playerId === 'guest') { showToast('Доступно внутри Telegram'); return; }
+    const watched = await watchAd();
+    if (!watched) { showToast('Реклама не досмотрена'); return; }
+    const r = await api('/api/ads/claim', { method: 'POST', body: { telegram_id: playerId, kind } });
+    if (!r.ok) { showToast('⚠️ ' + ((r.data && r.data.error) || 'Лимит на сегодня исчерпан')); return; }
+    track('ad_watch', { k: kind });
+    onReward(r.data.left);
+  }
+
+  /* ============================================================
      0. TELEGRAM
      ============================================================ */
   const tg = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined) ? window.Telegram.WebApp : null;
@@ -802,7 +828,25 @@
     const best = state.levelStars[n] || 0;
     $('introStars').innerHTML = `Ходов без ограничений! ⭐⭐⭐ — до ${th.three} ходов · ⭐⭐ — до ${th.two}` + (best ? `<br>Ваш рекорд: ${'⭐'.repeat(best)}` : '');
     renderPreBoosters();
+    renderStuckOffer(n);
     openModal('modalIntro');
+  }
+  const STUCK_OFFERS = ['hammer', 'shuffle'];
+  function renderStuckOffer(n) {
+    const el2 = $('stuckOffer');
+    if (!state.stuck || state.stuck.n !== n || state.stuck.count < 2) { el2.classList.add('hidden'); return; }
+    const k = STUCK_OFFERS[n % 2], B = BOOSTERS[k], qty = 3, price = B.price * 3 - Math.round(B.price * 0.4); // пакет со скидкой ~13%
+    el2.classList.remove('hidden');
+    el2.innerHTML = `<span class="so-ico">🤔</span><div class="so-text"><b>Похоже, уровень непростой</b><small>${B.icon} ${esc(B.name)} ×${qty} — ${esc(B.desc).toLowerCase()}</small></div><button class="btn btn-gold so-btn">${price} 💵</button>`;
+    el2.querySelector('.so-btn').addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (!trySpend('coins', price)) { showToast('Не хватает монет'); return; }
+      state.boosters[k] = (state.boosters[k] || 0) + qty; saveState(); renderHud(); renderPreBoosters();
+      Sound.coin(); haptic('success');
+      track('stuck_offer_buy', { k: String(n) });
+      el2.classList.add('hidden');
+      showToast(`${B.icon} +${qty} ${B.name}!`);
+    });
   }
   function renderPreBoosters() {
     const wrap = $('preBoosters');
@@ -1455,6 +1499,7 @@
     state.starsBank += gained;
     const firstClear = n >= state.unlockedLevel;
     if (firstClear) state.unlockedLevel = n + 1;
+    if (state.stuck && state.stuck.n === n) { state.stuck = null; saveState(); }
     let coins = firstClear ? 20 + stars * 10 + Math.min(80, Math.floor(n * 1.2)) : 10 + stars * 5;
     if (serverSettings.doubleRewards) coins *= 2;
     if (MK() && MK().isVip()) coins = Math.round(coins * 1.5);
@@ -1532,7 +1577,12 @@
   function leaveLevel() {
     if (board.arena) { board.st = null; board.run = null; $('screenGame').classList.remove('arena-mode'); board.arena = null; }
     else {
-      if (board.st && !board.done) track('lvl_quit', { n: board.level, moves: board.st.moves });
+      if (board.st && !board.done) {
+        track('lvl_quit', { n: board.level, moves: board.st.moves });
+        // Отмечаем «застревание» — вышел с этого уровня, не пройдя, второй раз подряд
+        state.stuck = (state.stuck && state.stuck.n === board.level) ? { n: board.level, count: state.stuck.count + 1 } : { n: board.level, count: 1 };
+        saveState();
+      }
       if (board.st && board.st.moves > 0 && !board.done) loseLife();
     }
     board.st = null; paused = false; clearHint();
@@ -1667,6 +1717,16 @@
     const g = el(`<div class="hero-deal green"><span class="h-ico">🎁</span><div class="h-text"><b>Бесплатный подарок</b><small>${ready ? 'Каждые 4 часа — заходи почаще!' : 'Следующий через ' + mmss(4 * 3600000 - (Date.now() - state.freeGiftLast))}</small></div><button class="btn ${ready ? 'btn-gold' : 'btn-ghost'}" ${ready ? '' : 'disabled'}>${ready ? 'Забрать' : '⏳'}</button></div>`);
     g.querySelector('button').addEventListener('click', claimFreeGift);
     body.appendChild(g);
+    if (!ready && state.adGiftUsedDay !== dayKey()) {
+      const ag = el(`<div class="hero-deal green"><span class="h-ico">📺</span><div class="h-text"><b>Ещё один подарок</b><small>Раз в день — за просмотр рекламы</small></div><button class="btn btn-gold">Смотреть</button></div>`);
+      ag.querySelector('button').addEventListener('click', () => claimAdReward('gift', () => {
+        state.adGiftUsedDay = dayKey(); saveState(); renderShop();
+        const rw = { coins: 60 + Math.floor(Math.random() * 10) * 10 };
+        if (Math.random() < 0.35) { const k = BOOSTER_KEYS[Math.floor(Math.random() * 5)]; rw.boosters = { [k]: 1 }; }
+        showReward(rw, { title: 'Подарок за рекламу', icon: '📺' });
+      }));
+      body.appendChild(ag);
+    }
     if (!state.starterBought) {
       const s = el(`<div class="hero-deal pink"><span class="h-ico">🚀</span><div class="h-text"><b>Стартовый набор</b><small>2000💵 + по 3 каждого бустера + неоновая рамка</small></div><button class="btn btn-gold">49 💎</button></div>`);
       s.querySelector('button').addEventListener('click', () => {
@@ -1876,17 +1936,13 @@
     const ready = wheelReady();
     $('wheelSub').textContent = ready ? 'Бесплатное вращение доступно!' : 'Бесплатно через ' + mmss(24 * 3600000 - (Date.now() - state.wheelLast));
     $('btnSpin').textContent = ready ? '🎡 Крутить бесплатно' : 'Крутить за 10 💎';
+    $('btnAdSpin').classList.toggle('hidden', ready || state.adSpinUsedDay === dayKey());
   }
-  function openWheel() { renderWheel(); openModal('modalWheel'); }
-  $('btnSpin').addEventListener('click', async () => {
-    if (spinning) return;
+  function doSpin(free) {
     ensureAudio();
-    const free = wheelReady();
-    if (!free && !trySpend('gems', 10)) return;
-    if (free) state.wheelLast = Date.now();
     saveState();
     spinning = true;
-    $('btnSpin').disabled = true;
+    $('btnSpin').disabled = true; $('btnAdSpin').disabled = true;
     const total = WHEEL.reduce((a, s) => a + s.w, 0);
     let x = Math.random() * total, idx = 0;
     for (; idx < WHEEL.length - 1; idx++) { x -= WHEEL[idx].w; if (x < 0) break; }
@@ -1895,13 +1951,26 @@
     $('wheel').style.transform = `rotate(${wheelRot}deg)`;
     haptic('medium');
     for (let i = 0; i < 18; i++) setTimeout(() => { tone(900 + i * 20, 0.03, 'square', 0.05); }, i * i * 12);
-    await wait(4400);
-    spinning = false;
-    $('btnSpin').disabled = false;
-    closeModal('modalWheel');
-    await showReward(WHEEL[idx].r, { title: 'Колесо Фортуны', icon: '🎡' });
-    updateBadges();
-    if (currentScreen === 'screenHome') renderHome();
+    return wait(4400).then(async () => {
+      spinning = false;
+      $('btnSpin').disabled = false; $('btnAdSpin').disabled = false;
+      closeModal('modalWheel');
+      await showReward(WHEEL[idx].r, { title: 'Колесо Фортуны', icon: '🎡' });
+      updateBadges();
+      if (currentScreen === 'screenHome') renderHome();
+    });
+  }
+  function openWheel() { renderWheel(); openModal('modalWheel'); }
+  $('btnSpin').addEventListener('click', () => {
+    if (spinning) return;
+    const free = wheelReady();
+    if (!free && !trySpend('gems', 10)) return;
+    if (free) state.wheelLast = Date.now();
+    doSpin(free);
+  });
+  $('btnAdSpin').addEventListener('click', () => {
+    if (spinning) return;
+    claimAdReward('wheel', (left) => { state.adSpinUsedDay = dayKey(); if (left <= 0) $('btnAdSpin').classList.add('hidden'); doSpin(false); });
   });
 
   /* ============================================================
@@ -2673,6 +2742,7 @@
 
   let noLivesTimer = null;
   function openNoLives() {
+    $('btnAdLife').classList.remove('hidden');
     openModal('modalNoLives');
     const upd = () => {
       tickLives();
@@ -2683,6 +2753,12 @@
   }
   $('btnRefillGems').addEventListener('click', () => { if (!trySpend('gems', 6)) return; refillLives(); saveState(); renderHud(); closeModal('modalNoLives'); Sound.win(); showToast('❤️ Жизни восполнены!'); });
   $('btnRefillCoins').addEventListener('click', () => { if (!trySpend('coins', 250)) return; refillLives(); saveState(); renderHud(); closeModal('modalNoLives'); Sound.win(); showToast('❤️ Жизни восполнены!'); });
+  $('btnAdLife').addEventListener('click', () => claimAdReward('life', (left) => {
+    state.lives = Math.min(MAX_LIVES, state.lives + 1); saveState(); renderHud();
+    if (!left) $('btnAdLife').classList.add('hidden');
+    if (state.lives > 0) closeModal('modalNoLives');
+    Sound.win(); showToast('📺 +1 ❤️ за просмотр!');
+  }));
 
   /* ============================================================
      16. ОБУЧЕНИЕ (подсказки-«коучи» с рукой)
