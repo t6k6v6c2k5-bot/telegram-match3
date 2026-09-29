@@ -357,6 +357,30 @@ app.get('/api/player-sync', requireUser, (req, res) => {
   res.json({ success: true, player: p, settings: publicSettings() });
 });
 
+/* Серверный вебхук AdsGram (формат из их кабинета: /api/ads/reward?userid=[userId]).
+   Нужен только при большой аудитории (50 000+ в день) для доп. проверки — сейчас награду
+   выдаёт /api/ads/claim по клиентскому колбэку, этот вебхук просто логирует визит на будущее. */
+app.get('/api/ads/reward', (req, res) => {
+  console.log('   AdsGram reward webhook: userid=' + (req.query.userid || '?'));
+  res.status(200).json({ ok: true });
+});
+
+/* Реклама за вознаграждение (AdsGram и т.п.): даём небольшую награду за просмотр,
+   но не больше N раз в сутки на каждый тип — иначе теряется смысл ограничений (жизни/вращения). */
+const AD_DAILY_LIMITS = { life: 3, wheel: 1, gift: 1 };
+app.post('/api/ads/claim', requireUser, (req, res) => {
+  const p = getOrCreatePlayer(req.user.id, req.user);
+  const kind = String(req.body.kind || '');
+  if (!AD_DAILY_LIMITS[kind]) return res.status(400).json({ success: false, error: 'Неизвестный тип награды' });
+  const day = new Date().toISOString().slice(0, 10);
+  if (!p.adsClaims || p.adsClaims.day !== day) p.adsClaims = { day, n: {} };
+  const used = p.adsClaims.n[kind] || 0;
+  if (used >= AD_DAILY_LIMITS[kind]) return res.status(429).json({ success: false, error: 'На сегодня лимит исчерпан — приходите завтра' });
+  p.adsClaims.n[kind] = used + 1;
+  saveDB();
+  res.json({ success: true, left: AD_DAILY_LIMITS[kind] - used - 1 });
+});
+
 /* Игрок отправляет прогресс. Если админ успел изменить аккаунт после последней синхронизации
    клиента (adminRev клиента устарел) — прогресс НЕ перезаписывается, клиент сначала подтягивает изменения. */
 app.post('/api/save-progress', requireUser, (req, res) => {
