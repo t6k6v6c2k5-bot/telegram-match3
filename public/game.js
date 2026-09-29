@@ -41,6 +41,13 @@
   }
 
   /* ============================================================
+     0c. ПЕРЕВОДЫ (i18n) — словарь лежит в i18n.js, здесь только связка с игрой
+     ============================================================ */
+  const T = (key, vars) => window.I18N.t(key, vars);
+  function applyStaticI18n() { qsa('[data-i18n]').forEach((el) => { el.textContent = T(el.dataset.i18n); }); }
+
+
+  /* ============================================================
      0. TELEGRAM
      ============================================================ */
   const tg = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined) ? window.Telegram.WebApp : null;
@@ -658,7 +665,7 @@
     const done = Math.max(0, Math.min(10, state.unlockedLevel - ch.firstLevel));
     $('chapterFill').style.width = (done * 10) + '%';
     $('chapterCount').textContent = done + '/10';
-    $('homePlayLevel').textContent = 'Уровень ' + state.unlockedLevel + (E.levelConfig(state.unlockedLevel).hard ? ' 🔥' : '');
+    $('homePlayLevel').textContent = T('level_word') + ' ' + state.unlockedLevel + (E.levelConfig(state.unlockedLevel).hard ? ' 🔥' : '');
     $('wheelHint').textContent = wheelReady() ? 'Бесплатно!' : mmss(24 * 3600 * 1000 - (Date.now() - state.wheelLast));
     $('dailyHint').textContent = loginReady() ? 'Забери!' : 'Завтра';
     $('giftHint').textContent = giftReady() ? 'Готов!' : mmss(4 * 3600 * 1000 - (Date.now() - state.freeGiftLast));
@@ -1715,10 +1722,10 @@
   /* ============================================================
      11. МАГАЗИН
      ============================================================ */
-  const SHOP_TABS = [['stars', '⭐ Донат'], ['hits', '🔥 Хиты'], ['boosters', '🚀 Бустеры'], ['lives', '❤️ Жизни'], ['chests', '🎁 Сундуки'], ['skins', '🎨 Скины'], ['profile', '👑 Профиль'], ['currency', '💱 Обмен']];
+  const SHOP_TABS = () => [['stars', '⭐ ' + T('shop_donate')], ['hits', '🔥 ' + T('shop_hits')], ['boosters', '🚀 ' + T('shop_boosters')], ['lives', '❤️ ' + T('shop_lives')], ['chests', '🎁 ' + T('shop_chests')], ['skins', '🎨 ' + T('shop_skins')], ['profile', '👑 ' + T('shop_profile')], ['currency', '💱 ' + T('shop_currency')]];
   let shopTab = 'hits';
   function renderShop() {
-    $('shopTabs').innerHTML = SHOP_TABS.map(([k, n]) => `<button class="tab ${k === shopTab ? 'active' : ''}" data-st="${k}">${n}</button>`).join('');
+    $('shopTabs').innerHTML = SHOP_TABS().map(([k, n]) => `<button class="tab ${k === shopTab ? 'active' : ''}" data-st="${k}">${n}</button>`).join('');
     qsa('[data-st]', $('shopTabs')).forEach((b) => b.addEventListener('click', () => { shopTab = b.dataset.st; Sound.select(); renderShop(); }));
     const body = $('shopBody');
     body.innerHTML = '';
@@ -2755,9 +2762,17 @@
     $('setSoundVal').className = 'toggle' + (state.sound ? ' on' : '');
     $('setVibroVal').className = 'toggle' + (state.vibration ? ' on' : '');
     $('setNotifyVal').className = 'toggle' + (notifyOn ? ' on' : '');
+    $('setLangVal').textContent = window.I18N.names[window.I18N.getLocale()];
     $('settingsInfo').textContent = `ID: ${playerId} · Fruit Blitz v3`;
   }
   $('btnSettings').addEventListener('click', () => { renderSettings(); openModal('modalSettings'); });
+  $('setLang').addEventListener('click', () => {
+    const locs = window.I18N.LOCALES, cur = locs.indexOf(window.I18N.getLocale());
+    window.I18N.setLocale(locs[(cur + 1) % locs.length]);
+    applyStaticI18n(); renderSettings();
+    if (currentScreen === 'screenHome') renderHome(); else if (currentScreen === 'screenShop') renderShop();
+    Sound.select();
+  });
   $('setSound').addEventListener('click', () => { state.sound = !state.sound; saveState(); renderSettings(); if (state.sound) Sound.click(); });
   $('setVibro').addEventListener('click', () => { state.vibration = !state.vibration; saveState(); renderSettings(); haptic('medium'); });
   $('setNotify').addEventListener('click', async () => {
@@ -3348,9 +3363,10 @@
     if (changed) saveState();
   }
   async function boot() {
-    const setP = (p, t) => { $('splashFill').style.width = p + '%'; $('splashStatus').textContent = t; };
+    const setP = (p, txt) => { $('splashFill').style.width = p + '%'; $('splashStatus').textContent = txt; };
     initTelegram();
     buildBackground();
+    applyStaticI18n();
     tickLives(); ensureDaily(); checkTitleUnlocks();
     setP(35, 'Собираем фрукты...');
     showScreen('screenHome');

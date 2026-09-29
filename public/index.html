@@ -68,17 +68,17 @@
 
         <button class="play-btn" id="btnHomePlay">
           <span class="play-shine"></span>
-          <span class="play-top">▶ ИГРАТЬ</span>
+          <span class="play-top" data-i18n="home_play">▶ ИГРАТЬ</span>
           <span class="play-sub" id="homePlayLevel">Уровень 1</span>
         </button>
 
         <div class="home-grid">
-          <button class="home-tile" id="tileMap"><span class="tile-ico">🗺️</span><b>Карта</b><small>Все уровни</small></button>
-          <button class="home-tile" id="tileWheel"><span class="tile-ico spin-slow">🎡</span><b>Колесо</b><small id="wheelHint">Бесплатно!</small><i class="dot hidden" id="dotWheel"></i></button>
-          <button class="home-tile" id="tileDaily"><span class="tile-ico">📅</span><b>Бонус дня</b><small id="dailyHint">Забери!</small><i class="dot hidden" id="dotDaily"></i></button>
-          <button class="home-tile" id="tileGift"><span class="tile-ico">🎁</span><b>Подарок</b><small id="giftHint">Готов!</small><i class="dot hidden" id="dotGift"></i></button>
-          <button class="home-tile" id="tileCollection"><span class="tile-ico">💎</span><b>Коллекция</b><small id="collectionHint">Предметы</small><i class="dot hidden" id="dotCollection"></i></button>
-          <button class="home-tile" id="tileLeaders"><span class="tile-ico">🏆</span><b>Рейтинг</b><small>Топ игроков</small></button>
+          <button class="home-tile" id="tileMap"><span class="tile-ico">🗺️</span><b data-i18n="home_map">Карта</b><small data-i18n="home_map_sub">Все уровни</small></button>
+          <button class="home-tile" id="tileWheel"><span class="tile-ico spin-slow">🎡</span><b data-i18n="home_wheel">Колесо</b><small id="wheelHint">Бесплатно!</small><i class="dot hidden" id="dotWheel"></i></button>
+          <button class="home-tile" id="tileDaily"><span class="tile-ico">📅</span><b data-i18n="home_daily">Бонус дня</b><small id="dailyHint">Забери!</small><i class="dot hidden" id="dotDaily"></i></button>
+          <button class="home-tile" id="tileGift"><span class="tile-ico">🎁</span><b data-i18n="home_gift">Подарок</b><small id="giftHint">Готов!</small><i class="dot hidden" id="dotGift"></i></button>
+          <button class="home-tile" id="tileCollection"><span class="tile-ico">💎</span><b data-i18n="home_collection">Коллекция</b><small id="collectionHint">Предметы</small><i class="dot hidden" id="dotCollection"></i></button>
+          <button class="home-tile" id="tileLeaders"><span class="tile-ico">🏆</span><b data-i18n="nav_leaders">Рейтинг</b><small data-i18n="home_leaders_sub">Топ игроков</small></button>
         </div>
 
         <button class="teaser arena-teaser" id="arenaTeaser">
@@ -150,24 +150,24 @@
 
     <!-- ============ МАГАЗИН ============ -->
     <section id="screenShop" class="screen">
-      <div class="screen-head"><h2>🛍 Магазин</h2></div>
+      <div class="screen-head"><h2 data-i18n="shop_title">🛍 Магазин</h2></div>
       <div class="tabs" id="shopTabs"></div>
       <div class="screen-scroll" id="shopBody"></div>
     </section>
 
     <!-- ============ САД ============ -->
     <section id="screenGarden" class="screen">
-      <div class="screen-head"><h2>🌳 Волшебный Сад</h2><span class="chip">⭐ <b id="gardenStars">0</b></span></div>
+      <div class="screen-head"><h2 data-i18n="garden_title">🌳 Волшебный Сад</h2><span class="chip">⭐ <b id="gardenStars">0</b></span></div>
       <div class="screen-scroll" id="gardenBody"></div>
     </section>
 
     <!-- ============ ЗАДАНИЯ ============ -->
     <section id="screenQuests" class="screen">
-      <div class="screen-head"><h2>📋 Задания</h2></div>
+      <div class="screen-head"><h2 data-i18n="quests_title">📋 Задания</h2></div>
       <div class="tabs" id="questTabs">
-        <button class="tab active" data-qtab="daily">Ежедневные</button>
-        <button class="tab" data-qtab="login">Вход 7 дней</button>
-        <button class="tab" data-qtab="ach">Достижения</button>
+        <button class="tab active" data-qtab="daily" data-i18n="quests_daily">Ежедневные</button>
+        <button class="tab" data-qtab="login" data-i18n="quests_login">Вход 7 дней</button>
+        <button class="tab" data-qtab="ach" data-i18n="quests_ach">Достижения</button>
       </div>
       <div class="screen-scroll" id="questBody"></div>
     </section>
@@ -180,13 +180,13 @@
     </section>
 
     <section id="screenArena" class="screen">
-      <div class="screen-head"><h2>🏟️ Арена</h2></div>
+      <div class="screen-head"><h2 data-i18n="arena_title">🏟️ Арена</h2></div>
       <div class="tabs" id="arenaTabs"></div>
       <div class="screen-scroll" id="arenaBody"></div>
     </section>
 
     <section id="screenLeaders" class="screen">
-      <div class="screen-head"><h2>🏆 Рейтинг</h2></div>
+      <div class="screen-head"><h2 data-i18n="leaders_title">🏆 Рейтинг</h2></div>
       <div class="tabs" id="leadersTabs"></div>
       <div class="screen-scroll" id="leadersBody"></div>
     </section>
@@ -194,11 +194,11 @@
 
   <!-- ============ НИЖНЯЯ НАВИГАЦИЯ ============ -->
   <nav id="bottomNav" class="bottom-nav">
-    <button class="nav-btn" data-nav="screenShop"><span>🛍</span><small>Магазин</small><i class="dot hidden" id="dotShop"></i></button>
-    <button class="nav-btn" data-nav="screenGarden"><span>🌳</span><small>Сад</small><i class="dot hidden" id="dotGarden"></i></button>
-    <button class="nav-btn nav-home active" data-nav="screenHome"><span>🏠</span><small>Главная</small></button>
-    <button class="nav-btn" data-nav="screenQuests"><span>📋</span><small>Задания</small><i class="dot hidden" id="dotQuests"></i></button>
-    <button class="nav-btn" data-nav="screenMarket"><span>💹</span><small>Маркет</small><i class="dot hidden" id="dotMarket"></i></button>
+    <button class="nav-btn" data-nav="screenShop"><span>🛍</span><small data-i18n="nav_shop">Магазин</small><i class="dot hidden" id="dotShop"></i></button>
+    <button class="nav-btn" data-nav="screenGarden"><span>🌳</span><small data-i18n="nav_garden">Сад</small><i class="dot hidden" id="dotGarden"></i></button>
+    <button class="nav-btn nav-home active" data-nav="screenHome"><span>🏠</span><small data-i18n="nav_home">Главная</small></button>
+    <button class="nav-btn" data-nav="screenQuests"><span>📋</span><small data-i18n="nav_quests">Задания</small><i class="dot hidden" id="dotQuests"></i></button>
+    <button class="nav-btn" data-nav="screenMarket"><span>💹</span><small data-i18n="nav_market">Маркет</small><i class="dot hidden" id="dotMarket"></i></button>
   </nav>
 
   <button id="adminFab" class="admin-fab hidden" aria-label="Админка">⚙️</button>
@@ -227,10 +227,10 @@
       <p class="muted" id="resultMoves">Ходов: 0</p>
       <div class="result-rewards" id="resultRewards"></div>
       <div class="result-note hidden" id="resultNote"></div>
-      <button class="btn btn-primary btn-big" id="btnNext">Дальше ▶</button>
+      <button class="btn btn-primary btn-big" id="btnNext" data-i18n="result_next">Дальше ▶</button>
       <div class="btn-row">
         <button class="btn btn-ghost" id="btnResultGarden">🌳 Сад</button>
-        <button class="btn btn-ghost" id="btnResultRetry">↻ Ещё раз</button>
+        <button class="btn btn-ghost" id="btnResultRetry" data-i18n="result_replay">↻ Ещё раз</button>
         <button class="btn btn-ghost" id="btnResultShare">📤</button>
       </div>
     </div>
@@ -238,13 +238,13 @@
 
   <div id="modalPause" class="overlay hidden">
     <div class="card">
-      <h2>Пауза</h2>
+      <h2 data-i18n="pause_title">Пауза</h2>
       <p class="muted" id="pauseInfo"></p>
-      <button class="btn btn-primary btn-big" id="btnResume">Продолжить</button>
+      <button class="btn btn-primary btn-big" id="btnResume" data-i18n="pause_resume">Продолжить</button>
       <button class="btn btn-ghost" id="btnPauseSound">🔊 Звук: вкл</button>
-      <button class="btn btn-ghost" id="btnRestart">↻ Начать заново</button>
+      <button class="btn btn-ghost" id="btnRestart" data-i18n="pause_restart">↻ Начать заново</button>
       <button class="btn btn-gold hidden" id="btnCharmShield">🛡️ Второе дыхание — продолжить без потери ❤️</button>
-      <button class="btn btn-danger" id="btnQuit">Выйти из уровня</button>
+      <button class="btn btn-danger" id="btnQuit" data-i18n="pause_quit">Выйти из уровня</button>
     </div>
   </div>
 
@@ -277,11 +277,11 @@
   <div id="modalOutOfMoves" class="overlay hidden">
     <div class="card">
       <div class="big-emoji">😵</div>
-      <h2>Ходы закончились!</h2>
+      <h2 data-i18n="oom_title">Ходы закончились!</h2>
       <p class="muted" id="oomInfo">Цель ещё не выполнена</p>
-      <button class="btn btn-green" id="btnOomAd">📺 Смотреть рекламу — +5 ходов</button>
+      <button class="btn btn-green" id="btnOomAd" data-i18n="oom_ad">📺 Смотреть рекламу — +5 ходов</button>
       <button class="btn btn-primary" id="btnOomGems">Купить 5 ходов — 8 💎</button>
-      <button class="btn btn-danger" id="btnOomQuit">Выйти (−1 ❤️)</button>
+      <button class="btn btn-danger" id="btnOomQuit" data-i18n="oom_quit">Выйти (−1 ❤️)</button>
     </div>
   </div>
 
@@ -289,12 +289,12 @@
     <div class="card">
       <button class="modal-x" data-close="modalNoLives">✕</button>
       <div class="big-emoji">💔</div>
-      <h2>Жизни закончились</h2>
+      <h2 data-i18n="nolives_title">Жизни закончились</h2>
       <p class="muted" id="noLivesTimer">Следующая жизнь скоро</p>
       <button class="btn btn-primary" id="btnRefillGems">Восполнить за 6 💎</button>
       <button class="btn btn-gold" id="btnRefillCoins">Восполнить за 250 💵</button>
-      <button class="btn btn-green hidden" id="btnAdLife">📺 Смотреть рекламу — +1 ❤️</button>
-      <button class="btn btn-ghost" data-close="modalNoLives">Подождать</button>
+      <button class="btn btn-green hidden" id="btnAdLife" data-i18n="nolives_ad">📺 Смотреть рекламу — +1 ❤️</button>
+      <button class="btn btn-ghost" data-close="modalNoLives" data-i18n="wait">Подождать</button>
     </div>
   </div>
 
@@ -322,14 +322,15 @@
   <div id="modalSettings" class="overlay hidden">
     <div class="card">
       <button class="modal-x" data-close="modalSettings">✕</button>
-      <h2>⚙️ Настройки</h2>
-      <button class="setting-row" id="setSound"><span>🔊 Звуки</span><b class="toggle on" id="setSoundVal"></b></button>
-      <button class="setting-row" id="setVibro"><span>📳 Вибрация</span><b class="toggle on" id="setVibroVal"></b></button>
-      <button class="setting-row" id="setNotify"><span>🔔 Напоминания в Telegram</span><b class="toggle on" id="setNotifyVal"></b></button>
-      <button class="setting-row" id="setShareProfile"><span>📤 Поделиться прогрессом</span><b>›</b></button>
-      <button class="setting-row" id="setChannel"><span>📢 Канал с новостями</span><b>›</b></button>
-      <button class="setting-row" id="setTutorial"><span>🎓 Пройти обучение заново</span><b>›</b></button>
-      <button class="setting-row" id="setInvite"><span>👥 Пригласить друга (+300 💵)</span><b>›</b></button>
+      <h2 data-i18n="settings_title">⚙️ Настройки</h2>
+      <button class="setting-row" id="setSound"><span data-i18n="settings_sound">🔊 Звуки</span><b class="toggle on" id="setSoundVal"></b></button>
+      <button class="setting-row" id="setVibro"><span data-i18n="settings_vibro">📳 Вибрация</span><b class="toggle on" id="setVibroVal"></b></button>
+      <button class="setting-row" id="setNotify"><span data-i18n="settings_notify">🔔 Напоминания в Telegram</span><b class="toggle on" id="setNotifyVal"></b></button>
+      <button class="setting-row" id="setShareProfile"><span data-i18n="settings_share">📤 Поделиться прогрессом</span><b>›</b></button>
+      <button class="setting-row" id="setChannel"><span data-i18n="settings_channel">📢 Канал с новостями</span><b>›</b></button>
+      <button class="setting-row" id="setTutorial"><span data-i18n="settings_tutorial">🎓 Пройти обучение заново</span><b>›</b></button>
+      <button class="setting-row" id="setInvite"><span data-i18n="settings_invite">👥 Пригласить друга (+300 💵)</span><b>›</b></button>
+      <button class="setting-row" id="setLang"><span data-i18n="settings_lang">🌐 Язык / Language</span><b id="setLangVal">Русский</b></button>
       <p class="muted tiny" id="settingsInfo"></p>
     </div>
   </div>
@@ -460,6 +461,7 @@
     <p class="splash-status" id="splashStatus">Загрузка...</p>
   </div>
 </div>
+<script src="i18n.js"></script>
 <script src="items.js"></script>
 <script src="engine.js"></script>
 <script src="game.js"></script>
