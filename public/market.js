@@ -174,6 +174,7 @@
           ${qualityBar(v.q)}
           <p class="muted tiny">${isLocked(v) ? '🔒 Продать или обменять можно через ' + leftText(v.lockUntil - Date.now()) : 'Можно продать на маркете или обменять'}</p>
         </div>
+        <button class="btn btn-green hidden" id="dropReroll">📺 Крутить ещё раз</button>
         <div class="btn-row"><button class="btn btn-ghost" id="dropEquip" disabled>Надеть</button><button class="btn btn-ghost" id="dropShare" disabled>📤</button><button class="btn btn-primary" id="dropOk" disabled>Отлично!</button></div>`;
       A.openModal('modalDrop');
       const reel = $('reel'), wrap = reel.parentElement;
@@ -200,6 +201,17 @@
         if (d.r >= 2) { A.Sound.win(); A.rainConfetti(40 + d.r * 30); } else A.Sound.goal();
         A.haptic('success');
         $('dropOk').disabled = false;
+        const rb = $('dropReroll');
+        rb.classList.remove('hidden'); rb.disabled = false; rb.textContent = '📺 Крутить ещё раз';
+        rb.onclick = () => {
+          rb.disabled = true; rb.textContent = '⏳ Смотрим рекламу...';
+          A.claimAdReward('reroll', async () => {
+            const r = await post('/api/eco/reroll-drop', {});
+            if (!r.ok || !r.data || !r.data.drop) { A.showToast('На этот раз не повезло — попробуйте снова позже'); rb.classList.add('hidden'); rb.disabled = false; rb.textContent = '📺 Крутить ещё раз'; return; }
+            await refresh();
+            showDrop(r.data.drop, { title: '📺 Новая попытка!' });
+          });
+        };
         const sh = $('dropShare');
         sh.disabled = false;
         sh.onclick = () => {

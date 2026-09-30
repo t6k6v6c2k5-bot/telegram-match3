@@ -1578,6 +1578,9 @@
     if (r.gained) pills.push(['⭐', '+' + r.gained + ' в Сад']);
     if (r.xp) pills.push(['🎟️', '+' + r.xp + ' XP']);
     $('resultRewards').innerHTML = pills.map(([i, t], k) => `<div class="reward-pill" style="animation-delay:${0.9 + k * 0.15}s">${i} ${esc(t)}</div>`).join('');
+    const dbtn = $('btnDoubleReward');
+    dbtn.classList.toggle('hidden', !!serverSettings.doubleRewards || r.doubled);
+    dbtn.disabled = false; dbtn.textContent = '📺 Удвоить награду (+' + r.coins + ' 💵)';
     const note = $('resultNote');
     let noteText = '';
     const gBtn = $('btnResultGarden');
@@ -1607,6 +1610,19 @@
   $('btnResultGarden').addEventListener('click', () => { closeModal('modalResult'); board.st = null; showScreen('screenGarden'); });
   $('btnResultRetry').addEventListener('click', () => { closeModal('modalResult'); const n = lastResult ? lastResult.n : board.level; board.st = null; showScreen('screenMap'); openIntro(n); });
   $('btnResultShare').addEventListener('click', () => shareLevel(lastResult));
+  $('btnDoubleReward').addEventListener('click', () => {
+    if (!lastResult || lastResult.doubled) return;
+    const btn = $('btnDoubleReward'); btn.disabled = true;
+    claimAdReward('double_reward', () => {
+      state.coins += lastResult.coins; saveState(); renderHud();
+      lastResult.doubled = true;
+      btn.classList.add('hidden');
+      const pill = $('resultRewards').querySelector('.reward-pill');
+      if (pill) pill.textContent = `💵 +${lastResult.coins * 2}`;
+      Sound.win(); haptic('success'); showToast('📺 Награда удвоена!');
+    });
+    setTimeout(() => { btn.disabled = false; }, 500);
+  });
 
   /* ---------------- Пауза / выход ---------------- */
   function openPause() {
@@ -3046,6 +3062,7 @@
       if (sp.garden) state.garden = { area: sp.garden.area || 0, areasDone: sp.garden.areasDone || 0, built: Array.isArray(sp.garden.built) ? sp.garden.built.slice() : [] };
       state.adminRev = sp.adminRev;
       showToast('🎁 Ваш аккаунт обновлён');
+      document.body.classList.toggle('rift', inRift());
       changed = true;
     }
     if (changed) {
@@ -3469,10 +3486,10 @@
     refreshScreen() { if (currentScreen !== 'screenGame') showScreen(currentScreen); },
     renderShop() { if (currentScreen === 'screenShop') renderShop(); },
     applyReward, equip,
-    shareCard, track,
+    shareCard, track, claimAdReward,
     onPaid() { if (!$('modalPass').classList.contains('hidden')) renderPass(); if (currentScreen === 'screenHome') renderHome(); }
   };
   // Отладочный доступ для автотестов (только с ?debug в адресе)
-  if (/[?&]debug\b/.test(location.search)) window.__FB = { board, E, get state() { return state; }, showScreen };
+  if (/[?&]debug\b/.test(location.search)) window.__FB = { board, E, get state() { return state; }, showScreen, syncWithServer };
   boot();
 })();
