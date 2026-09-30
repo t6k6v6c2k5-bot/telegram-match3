@@ -290,6 +290,18 @@ module.exports = function attachEconomy(ctx) {
     saveEco();
     res.json({ success: true, drop: view(it) });
   });
+  // Покупка эффекта имени (или другого предмета с ценой в монетах) — как и везде, монетам доверяем
+  // клиенту (списание делает trySpend() до вызова), здесь только выдача предмета.
+  app.post('/api/eco/buy-coins', requireUser, (req, res) => {
+    const p = ecoPlayer(req.user.id, req.user);
+    const itemId = String(req.body.itemId || '');
+    const def = Items.BY_ID[itemId];
+    if (!def || !def.coinPrice) return fail(res, 400, 'Этот предмет нельзя купить за монеты');
+    const it = createItem(itemId, p.id, { source: 'coins', lockHours: 0 });
+    feedItem(it, 'excl');
+    saveEco();
+    res.json({ success: true, uid: it.uid });
+  });
   // Лавка Изнанки — покупка за Эхо Бездны (валюта, доступная только игрокам за 350 уровнем).
   app.post('/api/eco/buy-echo', requireUser, (req, res) => {
     const p = ecoPlayer(req.user.id, req.user);
@@ -689,7 +701,8 @@ module.exports = function attachEconomy(ctx) {
     const pub = p.pub || {};
     const fr = p.equip && p.equip.frame && eco.items[p.equip.frame] && eco.items[p.equip.frame].owner === p.id ? eco.items[p.equip.frame].itemId : null;
     const au = p.equip && p.equip.aura && eco.items[p.equip.aura] && eco.items[p.equip.aura].owner === p.id ? eco.items[p.equip.aura].itemId : null;
-    return Object.assign({ id: p.id, name: p.name, username: p.username, badge: badgeOf(p.id), photo: pub.photo || null, frame: pub.frame || 'none', itemFrame: fr, itemAura: au,
+    const nf = p.equip && p.equip.namefx && eco.items[p.equip.namefx] && eco.items[p.equip.namefx].owner === p.id ? eco.items[p.equip.namefx].itemId : null;
+    return Object.assign({ id: p.id, name: p.name, username: p.username, badge: badgeOf(p.id), photo: pub.photo || null, frame: pub.frame || 'none', itemFrame: fr, itemAura: au, itemNameFx: nf,
       rift: (p.bestLevel || 0) > RIFT_THRESHOLD,
       titleName: pub.titleName || '', titleIcon: pub.titleIcon || '' }, extra || {});
   }
