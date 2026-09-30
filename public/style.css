@@ -930,3 +930,52 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
   background: conic-gradient(from 0deg, #ff4d6a, #ffd23f, #4fd97a, #4fc3ff, #b06aff, #ff4d6a);
   animation: aura-spin-legend 3s linear infinite; filter: blur(3px);
 }
+
+/* ==========================================================
+   ИЗНАНКА (RIFT) — после 350 уровня игра выглядит совсем иначе.
+   Переопределяем ключевые поверхности напрямую (многие используют хардкод-цвета,
+   не переменные), поэтому здесь набор точечных, но широких по охвату правил.
+   ========================================================== */
+body.rift .app-bg {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(120,20,160,.35), transparent 45%),
+    radial-gradient(circle at 90% 15%, rgba(20,200,180,.18), transparent 42%),
+    radial-gradient(circle at 50% 105%, rgba(90,10,40,.5), transparent 55%),
+    linear-gradient(165deg, #0c0616, #060310 55%, #020104);
+}
+body.rift .app-bg::before { background: conic-gradient(from 0deg, transparent, rgba(150,40,220,.10), transparent 30%, rgba(20,220,190,.08), transparent 60%); }
+body.rift .home-logo h1 { filter: grayscale(.3) brightness(.8) hue-rotate(220deg); }
+body.rift .play-btn { background: linear-gradient(180deg, #6a1fb8, #2a0a4a) !important; box-shadow: 0 6px 0 #1a0630, 0 10px 24px rgba(120,20,220,.5) !important; }
+body.rift .play-btn .play-shine { background: linear-gradient(120deg, transparent, rgba(150,80,255,.4), transparent) !important; }
+body.rift .board {
+  background: linear-gradient(160deg, #1a0a2e, #0a0414 55%, #050208) !important;
+  box-shadow: 0 0 0 1px rgba(150,80,255,.25), 0 0 0 6px rgba(80,20,140,.18), 0 0 0 7px rgba(0,0,0,.5),
+    0 0 60px 8px rgba(140,40,220,.22), 0 20px 42px rgba(0,0,0,.6),
+    inset 0 2px 6px rgba(150,100,255,.12), inset 0 -18px 32px rgba(0,0,0,.55) !important;
+}
+body.rift .board::before { background: linear-gradient(180deg, rgba(150,100,255,.10), transparent 26%) !important; }
+body.rift .cell { background: linear-gradient(160deg, rgba(90,20,150,.16), rgba(0,0,0,.3)) !important; }
+body.rift .gem { background: radial-gradient(ellipse at 30% 22%, rgba(200,140,255,.5) 0 9%, rgba(200,140,255,0) 26%), radial-gradient(circle at 50% 40%, #7a3fd0, #2a1050 78%) !important; }
+body.rift .bottom-nav { background: linear-gradient(180deg, rgba(20,8,35,.92), rgba(4,2,10,.96)) !important; border-top: 1px solid rgba(150,80,255,.25); }
+body.rift .nav-btn.active, body.rift .nav-home.active { color: #c58fff !important; }
+body.rift .pill, body.rift .hud-ico { filter: hue-rotate(230deg) saturate(1.2); }
+body.rift .home-tile, body.rift .chapter-card, body.rift .card { border-color: rgba(150,80,255,.22) !important; }
+
+/* Кат-сцена открытия портала */
+.rift-portal-overlay { background: radial-gradient(circle at 50% 50%, rgba(60,10,100,.6), #020104 75%); z-index: 999; }
+.rift-portal { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 20px; position: relative; }
+.rift-crack { position: absolute; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(150,80,255,.35), transparent 70%); filter: blur(6px); animation: rift-pulse 2s ease-in-out infinite; }
+@keyframes rift-pulse { 0%,100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.15); opacity: 1; } }
+.rift-ring { width: 180px; height: 180px; border-radius: 50%; border: 3px solid rgba(180,110,255,.7); box-shadow: 0 0 40px 10px rgba(150,80,255,.5), inset 0 0 30px rgba(150,80,255,.4); animation: rift-spin 6s linear infinite; }
+@keyframes rift-spin { to { transform: rotate(360deg); } }
+.rift-title { font-size: 46px; font-weight: 900; letter-spacing: 6px; margin: 10px 0 0; color: #d8b3ff; text-shadow: 0 0 20px rgba(180,110,255,.8), 0 4px 0 #2a0a4a; animation: rift-flicker 3s ease-in-out infinite; }
+@keyframes rift-flicker { 0%,100% { opacity: 1; } 92% { opacity: 1; } 93% { opacity: .4; } 94% { opacity: 1; } 96% { opacity: .6; } 97% { opacity: 1; } }
+.rift-sub { color: #b89fd8; font-size: 14px; line-height: 1.6; max-width: 300px; }
+.rift-enter-btn { margin-top: 10px; padding: 14px 40px; border-radius: 16px; background: linear-gradient(180deg, #9a4fe8, #4a1590); color: #fff; font-weight: 900; font-size: 16px; box-shadow: 0 6px 0 #2a0a4a, 0 10px 24px rgba(150,80,255,.5); }
+
+/* Особый вид карточки игрока из Изнанки — видно всем в рейтинге/профиле */
+.rift-card { background: linear-gradient(160deg, rgba(60,20,100,.35), rgba(10,4,20,.55)) !important; border: 1px solid rgba(150,80,255,.4) !important; position: relative; overflow: hidden; }
+.rift-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 40%, rgba(180,110,255,.15) 50%, transparent 60%); animation: rift-card-shine 3s ease-in-out infinite; pointer-events: none; }
+@keyframes rift-card-shine { 0%,100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
+.rift-card .lb-name, .rift-card b { color: #d8b3ff !important; }
+.rift-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 900; color: #d8b3ff; background: rgba(120,40,200,.3); border: 1px solid rgba(180,110,255,.5); border-radius: 8px; padding: 2px 7px; margin-left: 6px; }

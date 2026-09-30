@@ -274,6 +274,13 @@
      ============================================================ */
   const SAVE_KEY = 'fruit_blitz_progress_' + playerId;
   const MAX_LIVES = 10;
+  const RIFT_THRESHOLD = 350; // после этого уровня начинается «Изнанка» — полностью другой облик игры
+  const inRift = () => state.unlockedLevel > RIFT_THRESHOLD;
+  function openRiftPortal() {
+    Sound.nope(); haptic('error');
+    openModal('modalRiftPortal');
+    setTimeout(() => { document.body.classList.add('rift'); }, 300);
+  }
   const LIFE_REGEN_MS = 3 * 60 * 1000;
   function defaultState() {
     return {
@@ -665,7 +672,7 @@
     const done = Math.max(0, Math.min(10, state.unlockedLevel - ch.firstLevel));
     $('chapterFill').style.width = (done * 10) + '%';
     $('chapterCount').textContent = done + '/10';
-    $('homePlayLevel').textContent = T('level_word') + ' ' + state.unlockedLevel + (E.levelConfig(state.unlockedLevel).hard ? ' 🔥' : '');
+    $('homePlayLevel').textContent = inRift() ? '🌌 Глубина ' + (state.unlockedLevel - RIFT_THRESHOLD) : T('level_word') + ' ' + state.unlockedLevel + (E.levelConfig(state.unlockedLevel).hard ? ' 🔥' : '');
     $('wheelHint').textContent = wheelReady() ? 'Бесплатно!' : mmss(24 * 3600 * 1000 - (Date.now() - state.wheelLast));
     $('dailyHint').textContent = loginReady() ? 'Забери!' : 'Завтра';
     $('giftHint').textContent = giftReady() ? 'Готов!' : mmss(4 * 3600 * 1000 - (Date.now() - state.freeGiftLast));
@@ -807,7 +814,8 @@
      8. ИНТРО УРОВНЯ
      ============================================================ */
   const TILE_HEX = ['#ff4d6d', '#ffd23f', '#b24dff', '#3fa9ff', '#ff9f43', '#38d97a'];
-  function skinEmojis() { return (MK() && MK().skinEmojis()) || (SKINS[state.equippedSkin] || SKINS.classic).emojis; }
+  const RIFT_EMOJIS = ['🔮', '👁️', '🗝️', '⚱️', '🕸️', '💠'];
+  function skinEmojis() { if (board && board.level > RIFT_THRESHOLD) return RIFT_EMOJIS; return (MK() && MK().skinEmojis()) || (SKINS[state.equippedSkin] || SKINS.classic).emojis; }
   function goalIcon(g) {
     if (g.type === 'collect') return skinEmojis()[g.t];
     return { ice: '🧊', box: '📦', ingredient: '🥥', score: '⭐' }[g.type] || '🎯';
@@ -824,9 +832,9 @@
     introLevel = n; introSel.clear();
     const cfg = E.levelConfig(n), ch = E.chapterOf(n);
     const preview = E.createBoard(cfg, { seed: 7 });
-    $('introBadge').textContent = n;
-    $('introTitle').textContent = 'Уровень ' + n + (cfg.hard ? ' 🔥' : '');
-    $('introSub').textContent = `${ch.emoji} Глава ${ch.number} · ${ch.name}${cfg.hard ? ' · сложный' : ''}`;
+    $('introBadge').textContent = n > RIFT_THRESHOLD ? '🌌' : n;
+    $('introTitle').textContent = n > RIFT_THRESHOLD ? '🌌 Глубина ' + (n - RIFT_THRESHOLD) : 'Уровень ' + n + (cfg.hard ? ' 🔥' : '');
+    $('introSub').textContent = n > RIFT_THRESHOLD ? 'Изнанка · чем глубже, тем страннее' : `${ch.emoji} Глава ${ch.number} · ${ch.name}${cfg.hard ? ' · сложный' : ''}`;
     $('introGoals').innerHTML = preview.goals.map((g) => `<div class="goal-chip"><span class="g-ico">${goalIcon(g)}</span>${g.type === 'score' ? fmt(g.target) : g.target}</div>`).join('');
     const nm = cfg.newMechanic && MECHANIC_INFO[cfg.newMechanic];
     $('introNew').classList.toggle('hidden', !nm);
@@ -909,7 +917,7 @@
     board.goalPrev = board.st.goals.map((g) => g.count);
     saveState();
     showScreen('screenGame');
-    $('gameLevelNum').textContent = n;
+    $('gameLevelNum').textContent = n > RIFT_THRESHOLD ? '🌌' + (n - RIFT_THRESHOLD) : n;
     buildBoardDom();
     requestAnimationFrame(() => { layoutBoard(); renderGoals(true); });
     renderBoosterBar();
@@ -1536,7 +1544,9 @@
     state.levelStars[n] = Math.max(prev, stars);
     state.starsBank += gained;
     const firstClear = n >= state.unlockedLevel;
+    const crossingRift = firstClear && n === RIFT_THRESHOLD;
     if (firstClear) state.unlockedLevel = n + 1;
+    if (inRift()) { state.voidEcho = (state.voidEcho || 0) + 12 + Math.floor(Math.random() * 8); document.body.classList.add('rift'); }
     if (state.stuck && state.stuck.n === n) { state.stuck = null; saveState(); }
     let coins = firstClear ? 20 + stars * 10 + Math.min(80, Math.floor(n * 1.2)) : 10 + stars * 5;
     if (serverSettings.doubleRewards) coins *= 2;
@@ -1557,6 +1567,7 @@
     track('lvl_win', { n, moves: st.moves, ms: Date.now() - (board.t0 || Date.now()), stars });
     lastResult = { n, stars, coins, gained, firstClear, moves: st.moves, par: st.par, score: st.score, xp };
     showResult(lastResult);
+    if (crossingRift) setTimeout(openRiftPortal, 1400);
     if (MK() && board.run) MK().finishRun(board.run);
     board.run = null;
   }
@@ -1637,6 +1648,12 @@
     track('charm_shield_used');
   });
   $('btnQuit').addEventListener('click', () => { const wasArena = !!board.arena; leaveLevel(); if (wasArena) openArena(); else showScreen('screenMap'); });
+  $('btnRiftEnter').addEventListener('click', () => {
+    closeModal('modalRiftPortal');
+    track('rift_enter');
+    if (currentScreen === 'screenHome') renderHome();
+  });
+
 
   /* ============================================================
      10. ВОЛШЕБНЫЙ САД (главная цель игры: звёзды → постройки → награды)
@@ -1890,6 +1907,31 @@
       });
       g3.appendChild(card);
     });
+    if (inRift()) {
+      label(body, `🌌 Лавка Изнанки — за Эхо Бездны: ${fmt(state.voidEcho || 0)} 🔮`);
+      const g4 = grid(body);
+      const owned2 = {};
+      myItems.forEach((it) => { if (it.itemId === 'rift_frame' || it.itemId === 'rift_badge') owned2[it.itemId] = it; });
+      [['rift_frame', 'frame'], ['rift_badge', 'badge']].forEach(([id, slot]) => {
+        const d = window.FBItems.BY_ID[id]; const have = owned2[id];
+        const equippedId = MK() && MK().me && MK().me.equip && MK().me.equip[slot] && MK().me.equip[slot].itemId;
+        const card = el(`<div class="product rift-shop-card">
+          <div class="p-ico">${MK() ? MK().pv(d, 50) : d.type === 'frame' ? '🖼️' : '🕸️'}</div>
+          <div class="p-name">${esc(d.name)}</div>
+          <div class="p-desc">${have ? 'Уже у вас' : d.echoPrice + ' 🔮'}</div>
+          <button class="btn ${have ? (equippedId === id ? 'btn-ghost' : 'btn-primary') : 'btn-gold'}">${have ? (equippedId === id ? 'Надето' : 'Надеть') : d.echoPrice + ' 🔮'}</button></div>`);
+        card.querySelector('button').addEventListener('click', async () => {
+          if (have) { if (equippedId === id) return; const r = await api('/api/eco/equip', { method: 'POST', body: { telegram_id: playerId, slot, uid: have.uid } }); if (r.ok) { Sound.select(); renderShop(); } return; }
+          if ((state.voidEcho || 0) < d.echoPrice) { showToast('Не хватает Эхо Бездны 🔮'); return; }
+          state.voidEcho -= d.echoPrice; saveState();
+          const r = await api('/api/eco/buy-echo', { method: 'POST', body: { telegram_id: playerId, itemId: id } });
+          if (!r.ok) { state.voidEcho += d.echoPrice; saveState(); showToast('⚠️ ' + ((r.data && r.data.error) || 'Не удалось купить — Эхо возвращено')); return; }
+          Sound.win(); haptic('success'); showToast(`${esc(d.name)} — ваша!`);
+          renderShop();
+        });
+        g4.appendChild(card);
+      });
+    }
   }
   function shopCurrency(body) {
     label(body, 'Кристаллы → монеты');
@@ -2300,7 +2342,7 @@
     const top3 = list.slice(0, 3), podOrder = [top3[1], top3[0], top3[2]];
     html += '<div class="lb-podium">' + podOrder.map((p, i) => p ? `<button class="podium p${[2, 1, 3][i]}" data-prof="${p.id}">${avatarOf(p)}<b>${esc(p.name)}</b><small>${lbVal(by, p.value)}</small><div class="pd-bar">${[2, 1, 3][i]}</div></button>` : '<div class="podium"></div>').join('') + '</div>';
     html += `<p class="section-label">${me.rank ? `Вы на ${me.rank}-м месте из ${me.total}` : by === 'collection' ? 'Соберите предметы, чтобы попасть в рейтинг' : by === 'likes' ? 'Пока без лайков — прокачайте витрину!' : 'Пройдите уровень, чтобы попасть в рейтинг'}</p>`;
-    html += list.map((p, i) => `<button class="lb-row ${p.me ? 'me' : ''}" data-prof="${p.id}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${avatarOf(p)}<span class="lb-name">${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}<small>${p.titleIcon ? esc(p.titleIcon + ' ' + p.titleName) : p.username ? '@' + esc(p.username) : ''}</small></span><span class="lb-val">${lbVal(by, p.value)}<br><small>${esc(p.sub || '')}</small></span></button>`).join('');
+    html += list.map((p, i) => `<button class="lb-row ${p.me ? 'me' : ''} ${p.rift ? 'rift-card' : ''}" data-prof="${p.id}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${avatarOf(p)}<span class="lb-name">${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}${p.rift ? '<span class="rift-badge">🌌 Изнанка</span>' : ''}<small>${p.titleIcon ? esc(p.titleIcon + ' ' + p.titleName) : p.username ? '@' + esc(p.username) : ''}</small></span><span class="lb-val">${lbVal(by, p.value)}<br><small>${esc(p.sub || '')}</small></span></button>`).join('');
     if (me.rank > 50) html += `<button class="lb-row me" data-prof="${playerId}"><span class="lb-rank">${me.rank}</span>${avatarOf({ me: true, frame: state.equippedFrame })}<span class="lb-name">${esc(displayName)}</span><span class="lb-val">${lbVal(by, me.value)}</span></button>`;
     body.innerHTML = html;
     qsa('[data-prof]', body).forEach((b) => b.addEventListener('click', () => openProfile(b.dataset.prof)));
@@ -2404,8 +2446,8 @@
     const online = Date.now() - p.lastSeen < 10 * 60000;
     const ranks = [['🚩', p.ranks.level], ['💎', p.ranks.collection], ['❤️', p.ranks.likes]].filter((x) => x[1]).map(([i, r]) => `<span class="chip">${i} #${r}</span>`).join('');
     $('profileBody').innerHTML = `
-      <div class="pf-head">${avatarOf(Object.assign({}, p, { me: mine, frame: mine ? state.equippedFrame : p.frame }), 'pf-avatar')}
-        <div class="pf-name"><b>${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}</b>
+      <div class="pf-head${p.rift ? ' rift-card' : ''}">${avatarOf(Object.assign({}, p, { me: mine, frame: mine ? state.equippedFrame : p.frame }), 'pf-avatar')}
+        <div class="pf-name"><b>${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}${p.rift ? '<span class="rift-badge">🌌 Изнанка</span>' : ''}</b>
           <span class="profile-title">${esc((pub.titleIcon || '🌱') + ' ' + (pub.titleName || 'Новичок'))}</span>
           <small>${online ? '<i class="on-dot"></i> в игре' : 'был(а) ' + agoText(p.lastSeen)}${p.username ? ' · @' + esc(p.username) : ''}</small>
           <div class="pf-chips">${p.vip ? '<span class="chip vip">👑 VIP</span>' : ''}${p.passPremium ? '<span class="chip">🎟️ Премиум</span>' : ''}${ranks}</div></div></div>
@@ -2930,7 +2972,7 @@
   function progressPayload() {
     return { telegram_id: playerId, name: tgUser ? tgUser.first_name : '', username: tgUser ? tgUser.username : '',
       level: state.unlockedLevel, totalStars: totalStars(), starsBank: state.starsBank, coins: state.coins, gems: state.gems,
-      lives: state.lives, boosters: state.boosters, legendary: state.legendary, garden: state.garden, score: state.stats.bestScore, adminRev: state.adminRev,
+      lives: state.lives, boosters: state.boosters, legendary: state.legendary, garden: state.garden, voidEcho: state.voidEcho || 0, score: state.stats.bestScore, adminRev: state.adminRev,
       tz: -new Date().getTimezoneOffset(), timers: reminderTimers(), passUnclaimed: passClaimable(), pub: pubPayload() };
   }
   // Когда что-то снова станет доступно — сервер напомнит через бота, если игрок не зашёл сам
@@ -3393,6 +3435,7 @@
     initTelegram();
     buildBackground();
     applyStaticI18n();
+    document.body.classList.toggle('rift', inRift());
     tickLives(); ensureDaily(); checkTitleUnlocks();
     setP(35, 'Собираем фрукты...');
     showScreen('screenHome');

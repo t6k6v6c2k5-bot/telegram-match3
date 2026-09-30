@@ -115,6 +115,8 @@
     I('aura_silver', 'aura', 6, 'Аура Искателя', '🥈', { gemPrice: 400 }),
     I('aura_gold', 'aura', 5, 'Аура Чемпиона', '🥇'),
     I('aura_legend', 'aura', 6, 'Аура Легенды', '💎', { stars: 250 }),
+    I('rift_frame', 'frame', 6, 'Рамка Изнанки', ['#7a1fd8', '#2a0a50', '#c58fff', '#1a0630'], { echoPrice: 300 }),
+    I('rift_badge', 'badge', 6, 'Странник Бездны', '🕸️', { echoPrice: 500 }),
     I('bg_apple', 'badge', 0, 'Яблочко', '🍎'),
     I('bg_clover', 'badge', 0, 'Клевер', '🍀'),
     I('bg_fox', 'badge', 1, 'Лис', '🦊'),
