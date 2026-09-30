@@ -277,6 +277,17 @@ module.exports = function attachEconomy(ctx) {
     saveEco();
     res.json({ success: true, uid: it.uid });
   });
+  // Лавка Изнанки — покупка за Эхо Бездны (валюта, доступная только игрокам за 350 уровнем).
+  app.post('/api/eco/buy-echo', requireUser, (req, res) => {
+    const p = ecoPlayer(req.user.id, req.user);
+    const itemId = String(req.body.itemId || '');
+    const def = Items.BY_ID[itemId];
+    if (!def || !def.echoPrice) return fail(res, 400, 'Этот предмет нельзя купить за Эхо Бездны');
+    const it = createItem(itemId, p.id, { source: 'echo', lockHours: 0 });
+    feedItem(it, 'excl');
+    saveEco();
+    res.json({ success: true, uid: it.uid });
+  });
   app.post('/api/eco/charm/continue', requireUser, (req, res) => {
     const p = ecoPlayer(req.user.id, req.user);
     const hasShield = p.equip.charm && eco.items[p.equip.charm] && eco.items[p.equip.charm].owner === p.id && eco.items[p.equip.charm].itemId === 'charm_shield';
@@ -660,11 +671,13 @@ module.exports = function attachEconomy(ctx) {
       photo: /^https:\/\/t\.me\/i\/userpic\/[\w/.-]{1,200}$/.test(String(b.photo || '')) ? b.photo : null
     };
   }
+  const RIFT_THRESHOLD = 350; // после этого уровня начинается «Изнанка» — совсем другая игра
   function cardOf(p, extra) {
     const pub = p.pub || {};
     const fr = p.equip && p.equip.frame && eco.items[p.equip.frame] && eco.items[p.equip.frame].owner === p.id ? eco.items[p.equip.frame].itemId : null;
     const au = p.equip && p.equip.aura && eco.items[p.equip.aura] && eco.items[p.equip.aura].owner === p.id ? eco.items[p.equip.aura].itemId : null;
     return Object.assign({ id: p.id, name: p.name, username: p.username, badge: badgeOf(p.id), photo: pub.photo || null, frame: pub.frame || 'none', itemFrame: fr, itemAura: au,
+      rift: (p.bestLevel || 0) > RIFT_THRESHOLD,
       titleName: pub.titleName || '', titleIcon: pub.titleIcon || '' }, extra || {});
   }
 

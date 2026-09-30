@@ -91,6 +91,7 @@ function normalizePlayer(p) {
   p.username = p.username || null;
   p.coins = Math.max(0, Math.floor(num(p.coins, 0)));
   p.gems = Math.max(0, Math.floor(num(p.gems, 0)));
+  p.voidEcho = Math.max(0, Math.floor(num(p.voidEcho, 0)));
   p.lives = Math.max(0, Math.floor(num(p.lives, 10)));
   p.bestLevel = Math.max(1, Math.floor(num(p.bestLevel, 1)));
   p.bestScore = Math.max(0, num(p.bestScore, 0));
@@ -397,6 +398,7 @@ app.post('/api/save-progress', requireUser, (req, res) => {
   const clampInt = (v, max) => Math.max(0, Math.min(max, Math.floor(num(v, 0))));
   if (typeof b.coins === 'number') p.coins = clampInt(b.coins, 1e9);
   if (typeof b.gems === 'number') p.gems = clampInt(b.gems, 1e7);
+  if (typeof b.voidEcho === 'number') p.voidEcho = clampInt(b.voidEcho, 1e7);
   if (typeof b.lives === 'number') p.lives = clampInt(b.lives, 99);
   const prevLevel = p.bestLevel;
   if (typeof b.level === 'number') p.bestLevel = Math.max(1, clampInt(b.level, 100000));
