@@ -1948,6 +1948,50 @@
         g4.appendChild(card);
       });
     }
+    label(body, '🔤 Цвет имени — виден везде, где вы упоминаетесь');
+    const g5 = grid(body);
+    const ownedNf = {};
+    myItems.forEach((it) => { if (it.type === 'namefx') ownedNf[it.itemId] = it; });
+    const equippedNf = MK() && MK().me && MK().me.equip && MK().me.equip.namefx && MK().me.equip.namefx.itemId;
+    ['namefx_blue', 'namefx_violet', 'namefx_rainbow'].forEach((id) => {
+      const eff = window.FBItems.NAMEFX_EFFECTS[id]; const have = ownedNf[id];
+      const card = el(`<div class="product ${have ? '' : 'locked'}">
+        <div class="p-ico"><span class="namefx-${id.replace('namefx_', '')}" style="font-size:22px;font-weight:900">Aa</span></div>
+        <div class="p-name">${esc(eff.name)}</div>
+        <div class="p-desc">${have ? esc(eff.desc) : eff.coinPrice + ' 💵'}</div>
+        <button class="btn ${have ? (equippedNf === id ? 'btn-ghost' : 'btn-primary') : 'btn-gold'}">${have ? (equippedNf === id ? 'Надето' : 'Надеть') : fmt(eff.coinPrice) + ' 💵'}</button></div>`);
+      card.querySelector('button').addEventListener('click', async () => {
+        if (have) { if (equippedNf === id) return; const r = await api('/api/eco/equip', { method: 'POST', body: { telegram_id: playerId, slot: 'namefx', uid: have.uid } }); if (r.ok) { Sound.select(); renderShop(); } return; }
+        if (!trySpend('coins', eff.coinPrice)) return;
+        const r = await api('/api/eco/buy-coins', { method: 'POST', body: { telegram_id: playerId, itemId: id } });
+        if (!r.ok) { state.coins += eff.coinPrice; saveState(); renderHud(); showToast('⚠️ ' + ((r.data && r.data.error) || 'Не удалось купить — монеты возвращены')); return; }
+        Sound.win(); haptic('success'); showToast(`${esc(eff.name)} — ваше!`);
+        renderShop();
+      });
+      g5.appendChild(card);
+    });
+    label(body, '💰 Премиум — самые дорогие вещи в игре, есть куда девать монеты');
+    const g6 = grid(body);
+    const ownedPrem = {};
+    myItems.forEach((it) => { if (['fr_emerald', 'fr_inferno', 'fr_royal', 'sk_luxury', 'sk_infinity'].includes(it.itemId)) ownedPrem[it.itemId] = it; });
+    [['fr_emerald', 'frame'], ['fr_inferno', 'frame'], ['fr_royal', 'frame'], ['sk_luxury', 'skin'], ['sk_infinity', 'skin']].forEach(([id, slot]) => {
+      const d = window.FBItems.BY_ID[id]; const have = ownedPrem[id];
+      const equippedId = MK() && MK().me && MK().me.equip && MK().me.equip[slot] && MK().me.equip[slot].itemId;
+      const card = el(`<div class="product">
+        <div class="p-ico">${MK() ? MK().pv(d, 50) : '💰'}</div>
+        <div class="p-name">${esc(d.name)}</div>
+        <div class="p-desc">${have ? 'Уже у вас' : fmt(d.coinPrice) + ' 💵'}</div>
+        <button class="btn ${have ? (equippedId === id ? 'btn-ghost' : 'btn-primary') : 'btn-gold'}">${have ? (equippedId === id ? 'Надето' : 'Надеть') : fmt(d.coinPrice) + ' 💵'}</button></div>`);
+      card.querySelector('button').addEventListener('click', async () => {
+        if (have) { if (equippedId === id) return; const r = await api('/api/eco/equip', { method: 'POST', body: { telegram_id: playerId, slot, uid: have.uid } }); if (r.ok) { Sound.select(); renderShop(); } return; }
+        if (!trySpend('coins', d.coinPrice)) return;
+        const r = await api('/api/eco/buy-coins', { method: 'POST', body: { telegram_id: playerId, itemId: id } });
+        if (!r.ok) { state.coins += d.coinPrice; saveState(); renderHud(); showToast('⚠️ ' + ((r.data && r.data.error) || 'Не удалось купить — монеты возвращены')); return; }
+        Sound.win(); haptic('success'); showToast(`${esc(d.name)} — ваше!`);
+        renderShop();
+      });
+      g6.appendChild(card);
+    });
   }
   function shopCurrency(body) {
     label(body, 'Кристаллы → монеты');
@@ -2358,7 +2402,7 @@
     const top3 = list.slice(0, 3), podOrder = [top3[1], top3[0], top3[2]];
     html += '<div class="lb-podium">' + podOrder.map((p, i) => p ? `<button class="podium p${[2, 1, 3][i]}" data-prof="${p.id}">${avatarOf(p)}<b>${esc(p.name)}</b><small>${lbVal(by, p.value)}</small><div class="pd-bar">${[2, 1, 3][i]}</div></button>` : '<div class="podium"></div>').join('') + '</div>';
     html += `<p class="section-label">${me.rank ? `Вы на ${me.rank}-м месте из ${me.total}` : by === 'collection' ? 'Соберите предметы, чтобы попасть в рейтинг' : by === 'likes' ? 'Пока без лайков — прокачайте витрину!' : 'Пройдите уровень, чтобы попасть в рейтинг'}</p>`;
-    html += list.map((p, i) => `<button class="lb-row ${p.me ? 'me' : ''} ${p.rift ? 'rift-card' : ''}" data-prof="${p.id}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${avatarOf(p)}<span class="lb-name">${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}${p.rift ? '<span class="rift-badge">🌌 Изнанка</span>' : ''}<small>${p.titleIcon ? esc(p.titleIcon + ' ' + p.titleName) : p.username ? '@' + esc(p.username) : ''}</small></span><span class="lb-val">${lbVal(by, p.value)}<br><small>${esc(p.sub || '')}</small></span></button>`).join('');
+    html += list.map((p, i) => `<button class="lb-row ${p.me ? 'me' : ''} ${p.rift ? 'rift-card' : ''}" data-prof="${p.id}"><span class="lb-rank">${['🥇', '🥈', '🥉'][i] || i + 1}</span>${avatarOf(p)}<span class="lb-name"><span class="${p.itemNameFx ? 'namefx-' + p.itemNameFx.replace('namefx_', '') : ''}">${esc(p.name)}</span>${p.badge ? ' ' + esc(p.badge) : ''}${p.rift ? '<span class="rift-badge">🌌 Изнанка</span>' : ''}<small>${p.titleIcon ? esc(p.titleIcon + ' ' + p.titleName) : p.username ? '@' + esc(p.username) : ''}</small></span><span class="lb-val">${lbVal(by, p.value)}<br><small>${esc(p.sub || '')}</small></span></button>`).join('');
     if (me.rank > 50) html += `<button class="lb-row me" data-prof="${playerId}"><span class="lb-rank">${me.rank}</span>${avatarOf({ me: true, frame: state.equippedFrame })}<span class="lb-name">${esc(displayName)}</span><span class="lb-val">${lbVal(by, me.value)}</span></button>`;
     body.innerHTML = html;
     qsa('[data-prof]', body).forEach((b) => b.addEventListener('click', () => openProfile(b.dataset.prof)));
@@ -2463,7 +2507,7 @@
     const ranks = [['🚩', p.ranks.level], ['💎', p.ranks.collection], ['❤️', p.ranks.likes]].filter((x) => x[1]).map(([i, r]) => `<span class="chip">${i} #${r}</span>`).join('');
     $('profileBody').innerHTML = `
       <div class="pf-head${p.rift ? ' rift-card' : ''}">${avatarOf(Object.assign({}, p, { me: mine, frame: mine ? state.equippedFrame : p.frame }), 'pf-avatar')}
-        <div class="pf-name"><b>${esc(p.name)}${p.badge ? ' ' + esc(p.badge) : ''}${p.rift ? '<span class="rift-badge">🌌 Изнанка</span>' : ''}</b>
+        <div class="pf-name"><b><span class="${p.itemNameFx ? 'namefx-' + p.itemNameFx.replace('namefx_', '') : ''}">${esc(p.name)}</span>${p.badge ? ' ' + esc(p.badge) : ''}${p.rift ? '<span class="rift-badge">🌌 Изнанка</span>' : ''}</b>
           <span class="profile-title">${esc((pub.titleIcon || '🌱') + ' ' + (pub.titleName || 'Новичок'))}</span>
           <small>${online ? '<i class="on-dot"></i> в игре' : 'был(а) ' + agoText(p.lastSeen)}${p.username ? ' · @' + esc(p.username) : ''}</small>
           <div class="pf-chips">${p.vip ? '<span class="chip vip">👑 VIP</span>' : ''}${p.passPremium ? '<span class="chip">🎟️ Премиум</span>' : ''}${ranks}</div></div></div>

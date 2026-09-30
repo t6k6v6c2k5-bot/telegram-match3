@@ -979,3 +979,13 @@ body.rift .home-tile, body.rift .chapter-card, body.rift .card { border-color: r
 @keyframes rift-card-shine { 0%,100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
 .rift-card .lb-name, .rift-card b { color: #d8b3ff !important; }
 .rift-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 900; color: #d8b3ff; background: rgba(120,40,200,.3); border: 1px solid rgba(180,110,255,.5); border-radius: 8px; padding: 2px 7px; margin-left: 6px; }
+
+/* ---------------- Цвет имени — второй, независимый от ауры способ выделиться ---------------- */
+.namefx-blue { color: #4fa8ff; font-weight: 900; text-shadow: 0 0 8px rgba(79,168,255,.6); }
+.namefx-violet { color: #c58fff; font-weight: 900; text-shadow: 0 0 10px rgba(197,143,255,.7); }
+@keyframes namefx-rainbow-shift { to { background-position: 200% center; } }
+.namefx-rainbow {
+  font-weight: 900; background: linear-gradient(90deg, #ff4d6a, #ffd23f, #4fd97a, #4fc3ff, #b06aff, #ff4d6a);
+  background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: namefx-rainbow-shift 3s linear infinite;
+}

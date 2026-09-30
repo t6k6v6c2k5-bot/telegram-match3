@@ -25,7 +25,15 @@
     frame: { name: 'Рамка аватара', icon: '🖼️' },
     badge: { name: 'Значок', icon: '🏅' },
     charm: { name: 'Артефакт', icon: '🍀' },
-    aura: { name: 'Аура', icon: '✨' }
+    aura: { name: 'Аура', icon: '✨' },
+    namefx: { name: 'Цвет имени', icon: '🔤' }
+  };
+  // Эффекты имени — второй, независимый от ауры способ выделиться: цвет/анимация самого текста
+  // имени в рейтинге и профиле. Дорогие — специально, чтобы давать применение накопленным монетам.
+  const NAMEFX_EFFECTS = {
+    namefx_blue: { name: 'Синее имя', desc: 'Имя окрашено в яркий синий', coinPrice: 8000 },
+    namefx_violet: { name: 'Фиолетовое имя', desc: 'Имя окрашено в фиолетовый с блеском', coinPrice: 25000 },
+    namefx_rainbow: { name: 'Радужное имя', desc: 'Имя переливается всеми цветами', coinPrice: 80000 }
   };
   // Артефакты — единственный тип предметов, который реально влияет на геймплей, а не только на вид.
   // Один слот (p.equip.charm) — носить можно только один артефакт одновременно.
@@ -117,6 +125,14 @@
     I('aura_legend', 'aura', 6, 'Аура Легенды', '💎', { stars: 250 }),
     I('rift_frame', 'frame', 6, 'Рамка Изнанки', ['#7a1fd8', '#2a0a50', '#c58fff', '#1a0630'], { echoPrice: 300 }),
     I('rift_badge', 'badge', 6, 'Странник Бездны', '🕸️', { echoPrice: 500 }),
+    I('namefx_blue', 'namefx', 6, 'Синее имя', '🔵', { coinPrice: 8000 }),
+    I('namefx_violet', 'namefx', 6, 'Фиолетовое имя', '🟣', { coinPrice: 25000 }),
+    I('namefx_rainbow', 'namefx', 6, 'Радужное имя', '🌈', { coinPrice: 80000 }),
+    I('fr_emerald', 'frame', 6, 'Изумрудная', ['#34d399', '#065f46', '#6ee7b7'], { coinPrice: 50000 }),
+    I('fr_inferno', 'frame', 6, 'Огненная Буря', ['#fb923c', '#7c2d12', '#fde047'], { coinPrice: 150000 }),
+    I('fr_royal', 'frame', 6, 'Королевское Золото', ['#fde047', '#a16207', '#fff7cd', '#78350f'], { coinPrice: 400000 }),
+    I('sk_luxury', 'skin', 6, 'Роскошь', ['💰', '🏆', '💍', '🥂', '🎩', '🖋️'], { coinPrice: 100000 }),
+    I('sk_infinity', 'skin', 6, 'Бесконечность', ['♾️', '🌀', '🔱', '⚛️', '🕳️', '💠'], { coinPrice: 300000 }),
     I('bg_apple', 'badge', 0, 'Яблочко', '🍎'),
     I('bg_clover', 'badge', 0, 'Клевер', '🍀'),
     I('bg_fox', 'badge', 1, 'Лис', '🦊'),
@@ -172,5 +188,5 @@
     return -1;
   }
 
-  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, seasonInfo, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance, CHARM_EFFECTS, AURA_EFFECTS };
+  return { RARITIES, TYPES, QUALITIES, ITEMS, BY_ID, SHINY_CHANCE, STARS_PRODUCTS, seasonInfo, dropPool, qualityOf, rarityOf, rollRarity, totalDropChance, CHARM_EFFECTS, AURA_EFFECTS, NAMEFX_EFFECTS };
 }));
