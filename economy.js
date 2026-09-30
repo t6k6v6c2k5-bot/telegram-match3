@@ -277,6 +277,19 @@ module.exports = function attachEconomy(ctx) {
     saveEco();
     res.json({ success: true, uid: it.uid });
   });
+  // Повторный розыгрыш предмета за рекламу (лимит проверяет /api/ads/claim, kind='reroll') —
+  // отдельный честный бросок, несколько выгоднее обычного, но без гарантии (реклама — не гарантия редкости).
+  app.post('/api/eco/reroll-drop', requireUser, (req, res) => {
+    const p = ecoPlayer(req.user.id, req.user);
+    const rarity = Items.rollRarity(rnd, 1.5);
+    if (rarity < 0) { return res.json({ success: true, drop: null }); }
+    const pool = Items.dropPool(rarity);
+    const def = pool[crypto.randomInt(0, pool.length)];
+    const it = createItem(def.id, p.id, { shiny: rnd() < Items.SHINY_CHANCE, source: 'reroll' });
+    feedItem(it, 'drop', {});
+    saveEco();
+    res.json({ success: true, drop: view(it) });
+  });
   // Лавка Изнанки — покупка за Эхо Бездны (валюта, доступная только игрокам за 350 уровнем).
   app.post('/api/eco/buy-echo', requireUser, (req, res) => {
     const p = ecoPlayer(req.user.id, req.user);

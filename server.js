@@ -368,7 +368,7 @@ app.get('/api/ads/reward', (req, res) => {
 
 /* Реклама за вознаграждение (AdsGram и т.п.): даём небольшую награду за просмотр,
    но не больше N раз в сутки на каждый тип — иначе теряется смысл ограничений (жизни/вращения). */
-const AD_DAILY_LIMITS = { life: 3, wheel: 1, gift: 1, moves: 5 };
+const AD_DAILY_LIMITS = { life: 3, wheel: 1, gift: 1, moves: 5, double_reward: 20, reroll: 5 };
 app.post('/api/ads/claim', requireUser, (req, res) => {
   const p = getOrCreatePlayer(req.user.id, req.user);
   const kind = String(req.body.kind || '');
