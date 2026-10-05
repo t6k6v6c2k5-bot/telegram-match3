@@ -892,7 +892,7 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .boss-head { display: flex; justify-content: space-between; align-items: center; }
 .boss-head b { font-size: 15px; color: #fff; }
 .boss-timer { background: rgba(0,0,0,.4); border-radius: 10px; padding: 3px 9px; font-size: 11px; font-weight: 800; color: #ffd479; }
-.boss-monster { text-align: center; font-size: 52px; margin: 4px 0; animation: boss-float 3.2s ease-in-out infinite; filter: drop-shadow(0 8px 10px rgba(0,0,0,.5)); }
+.boss-monster { text-align: center; font-size: 52px; margin: 4px 0; animation: boss-float 3.2s ease-in-out infinite; }
 .boss-hprow { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; color: #ffb9c4; margin-bottom: 4px; }
 .boss-hpbar { height: 14px; border-radius: 8px; background: rgba(0,0,0,.5); overflow: hidden; border: 1px solid rgba(255,255,255,.15); position: relative; }
 .boss-hpfill { height: 100%; background: linear-gradient(90deg,#ff4d6a,#ff8a3c); border-radius: 8px; position: relative; transition: width .6s ease; }
@@ -928,7 +928,7 @@ button.podium { background: none; border: 0; padding: 0; color: inherit; }
 .avatar.aura-legend::before {
   content: ''; position: absolute; inset: -5px; border-radius: 50%; z-index: -1;
   background: conic-gradient(from 0deg, #ff4d6a, #ffd23f, #4fd97a, #4fc3ff, #b06aff, #ff4d6a);
-  animation: aura-spin-legend 3s linear infinite; filter: blur(3px);
+  animation: aura-spin-legend 3s linear infinite;
 }
 
 /* ==========================================================
