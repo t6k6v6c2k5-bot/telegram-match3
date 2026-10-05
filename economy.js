@@ -689,10 +689,15 @@ module.exports = function attachEconomy(ctx) {
   function ingestPub(p, b) {
     if (!b || typeof b !== 'object') return;
     const n = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+    const old = p.pub || {};
+    // Накопительные/рекордные показатели — только «вперёд»: иначе устройство со старым локальным
+    // сохранением (например, давно не открывавшийся десктоп-сеанс) может откатить профиль назад
+    // при каждом заходе на «свою страницу», затирая более свежие цифры с других устройств.
+    const fwd = (key, max) => Math.max(old[key] || 0, n(b[key], max));
     p.pub = {
       frame: KEY.test(b.frame) ? b.frame : 'none', title: KEY.test(b.title) ? b.title : 'novice',
       titleName: String(b.titleName || '').slice(0, 30), titleIcon: String(b.titleIcon || '').slice(0, 8),
-      garden: n(b.garden, 9999), pass: n(b.pass, 30), wins: n(b.wins, 1e7), perfects: n(b.perfects, 1e7), combo: n(b.combo, 999), ach: n(b.ach, 999),
+      garden: fwd('garden', 9999), pass: fwd('pass', 30), wins: fwd('wins', 1e7), perfects: fwd('perfects', 1e7), combo: fwd('combo', 999), ach: fwd('ach', 999),
       photo: /^https:\/\/t\.me\/i\/userpic\/[\w/.-]{1,200}$/.test(String(b.photo || '')) ? b.photo : null
     };
   }

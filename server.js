@@ -405,12 +405,15 @@ app.post('/api/save-progress', requireUser, (req, res) => {
   if (typeof b.voidEcho === 'number') p.voidEcho = clampInt(b.voidEcho, 1e7);
   if (typeof b.lives === 'number') p.lives = clampInt(b.lives, 99);
   const prevLevel = p.bestLevel;
-  if (typeof b.level === 'number') p.bestLevel = Math.max(1, clampInt(b.level, 100000));
+  // Уровень и общее число звёзд — только «вперёд»: это накопительные/рекордные показатели, откат
+  // назад всегда означает, что синхронизируется устройство с более старым локальным сохранением,
+  // а не реальный регресс игрока. (Банк звёзд в Саду — другое дело, его законно тратят, не трогаем.)
+  if (typeof b.level === 'number') p.bestLevel = Math.max(p.bestLevel || 1, Math.max(1, clampInt(b.level, 100000)));
   // Рубежи уровней — в ленту событий (только при обычном прохождении, без резких скачков)
   const passed = p.bestLevel - 1, prevPassed = prevLevel - 1;
   if (economy && passed >= 50 && Math.floor(passed / 50) > Math.floor(prevPassed / 50) && passed - prevPassed <= 10) economy.pushFeed(p.id, 'level', { n: Math.floor(passed / 50) * 50 });
   if (economy && b.pub) economy.ingestPub(p, b.pub);
-  if (typeof b.totalStars === 'number') p.totalStars = clampInt(b.totalStars, 1e6);
+  if (typeof b.totalStars === 'number') p.totalStars = Math.max(p.totalStars || 0, clampInt(b.totalStars, 1e6));
   if (typeof b.starsBank === 'number') p.starsBank = clampInt(b.starsBank, 1e6);
   if (typeof b.score === 'number') p.bestScore = Math.max(p.bestScore, clampInt(b.score, 1e9));
   if (b.boosters && typeof b.boosters === 'object') BOOSTER_KEYS.forEach((k) => { if (typeof b.boosters[k] === 'number') p.boosters[k] = clampInt(b.boosters[k], 9999); });
