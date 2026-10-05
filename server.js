@@ -339,6 +339,10 @@ if (!BOT_TOKEN) {
 const app = express();
 app.use(cors());
 app.use(compression()); // сжимаем все ответы — game.js/style.css весят сотни КБ несжатыми
+// На API-ответы (в отличие от статичных файлов) кеш запрещаем полностью — иначе некоторые
+// WebView (замечено на Telegram Desktop) могут показывать устаревшие данные профиля/прогресса
+// вместо свежего запроса к серверу, несмотря на то что фактически сервер уже всё обновил.
+app.use((req, res, next) => { if (req.path.startsWith('/api')) res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate'); next(); });
 const jsonSmall = express.json({ limit: '64kb' }), jsonBig = express.json({ limit: '3mb' });
 app.use((req, res, next) => (req.path === '/api/share/prepare' || req.path === '/api/admin/news/post' ? jsonBig : jsonSmall)(req, res, next)); // карточки «Поделиться» — картинки
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
