@@ -989,3 +989,15 @@ body.rift .home-tile, body.rift .chapter-card, body.rift .card { border-color: r
   background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: namefx-rainbow-shift 3s linear infinite;
 }
+
+/* ---------------- Сюжетная кампания ---------------- */
+#modalStory { z-index: 1200; }
+.story-card { width: min(360px, 100%); text-align: center; }
+.story-hero { font-size: 72px; line-height: 1; animation: logo-bob 1.6s ease-in-out infinite; }
+.story-card h3 { margin: 6px 0 0; font-size: 20px; }
+.story-chapter { margin: 2px 0 10px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.story-text { min-height: 84px; margin: 0 0 10px; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.1); font-size: 15px; font-weight: 700; line-height: 1.4; }
+.story-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 12px; }
+.story-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.25); }
+.story-dots i.on { background: var(--gold); }
+.story-boss { color: #ff6b6b; }

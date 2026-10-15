@@ -824,6 +824,35 @@
     if (g.type === 'score') return fmt(st ? Math.min(st.score, g.target) : 0) + '/' + fmt(g.target);
     return String(Math.max(0, g.target - g.count));
   }
+  /* ============================================================
+     СЮЖЕТНАЯ КАМПАНИЯ: диалоги героев и боссы глав
+     ============================================================ */
+  const isBossLevel = (n) => n % 10 === 0 && n <= RIFT_THRESHOLD;
+  function showStory(chIdx, kind, onDone) {
+    const C = window.FBCampaign;
+    const key = 'story_' + kind + '_' + chIdx;
+    if (!C || state.tips[key] || chIdx > 6) { if (onDone) onDone(); return; }
+    state.tips[key] = true; saveState();
+    const rg = C.region(chIdx), ch = E.chapterOf(chIdx * 10 + 1);
+    const lines = (kind === 'intro' ? rg.intro : rg.outro).slice();
+    let i = 0;
+    $('storyHero').textContent = kind === 'intro' ? rg.hero : rg.boss;
+    $('storyName').textContent = kind === 'intro' ? rg.heroName : rg.bossName;
+    $('storyChapter').textContent = `${ch.emoji} Глава ${ch.number} · ${ch.name}`;
+    const render = () => {
+      $('storyText').textContent = lines[i];
+      $('storyDots').innerHTML = lines.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('');
+      $('btnStoryNext').textContent = i === lines.length - 1 ? 'Вперёд!' : 'Дальше ▶';
+    };
+    $('btnStoryNext').onclick = () => {
+      Sound.click(); haptic('light');
+      if (i < lines.length - 1) { i++; render(); return; }
+      closeModal('modalStory'); if (onDone) onDone();
+    };
+    render();
+    openModal('modalStory');
+  }
+
   let introLevel = 1;
   const introSel = new Set();
   function openIntro(n) {
@@ -834,7 +863,7 @@
     const preview = E.createBoard(cfg, { seed: 7 });
     $('introBadge').textContent = n > RIFT_THRESHOLD ? '🌌' : n;
     $('introTitle').textContent = n > RIFT_THRESHOLD ? '🌌 Глубина ' + (n - RIFT_THRESHOLD) : 'Уровень ' + n + (cfg.hard ? ' 🔥' : '');
-    $('introSub').textContent = n > RIFT_THRESHOLD ? 'Изнанка · чем глубже, тем страннее' : `${ch.emoji} Глава ${ch.number} · ${ch.name}${cfg.hard ? ' · сложный' : ''}`;
+    $('introSub').textContent = n > RIFT_THRESHOLD ? 'Изнанка · чем глубже, тем страннее' : (isBossLevel(n) && window.FBCampaign ? `${window.FBCampaign.region(ch.index).boss} Босс: ${window.FBCampaign.region(ch.index).bossName}` : `${ch.emoji} Глава ${ch.number} · ${ch.name}${cfg.hard ? ' · сложный' : ''}`);
     $('introGoals').innerHTML = preview.goals.map((g) => `<div class="goal-chip"><span class="g-ico">${goalIcon(g)}</span>${g.type === 'score' ? fmt(g.target) : g.target}</div>`).join('');
     const nm = cfg.newMechanic && MECHANIC_INFO[cfg.newMechanic];
     $('introNew').classList.toggle('hidden', !nm);
@@ -845,6 +874,7 @@
     renderPreBoosters();
     renderStuckOffer(n);
     openModal('modalIntro');
+    if ((n - 1) % 10 === 0 && n <= RIFT_THRESHOLD) showStory(ch.index, 'intro');
   }
   const STUCK_OFFERS = ['hammer', 'shuffle'];
   function renderStuckOffer(n) {
@@ -1567,6 +1597,7 @@
     track('lvl_win', { n, moves: st.moves, ms: Date.now() - (board.t0 || Date.now()), stars });
     lastResult = { n, stars, coins, gained, firstClear, moves: st.moves, par: st.par, score: st.score, xp };
     showResult(lastResult);
+    if (firstClear && isBossLevel(n)) setTimeout(() => showStory(E.chapterOf(n).index, 'outro'), 1800);
     if (crossingRift) setTimeout(openRiftPortal, 1400);
     if (MK() && board.run) MK().finishRun(board.run);
     board.run = null;
