@@ -693,6 +693,11 @@
      ============================================================ */
   const MAP_STEP = 112, MAP_TOP = 150, MAP_BOTTOM = 90;
   const MAP_X = [50, 74, 80, 62, 36, 22, 28, 50];
+  // Декор карты: разные предметы по главам (вместо одного повторяющегося эмодзи)
+  const MAP_DECO = [
+    ['🌱', '🍓', '🌼', '🦋'], ['🌴', '🍊', '🐚', '🍋'], ['🍃', '🍇', '🦋', '🪻'], ['🥥', '🌴', '🦜', '🍍'],
+    ['🌲', '🍄', '🫐', '🦊'], ['🧁', '🍬', '🍩', '🍭'], ['⭐', '🪐', '☄️', '🌙']
+  ];
   function renderMap() {
     const track = $('mapTrack');
     const scroll = $('mapScroll');
@@ -717,7 +722,11 @@
     let cy = H - MAP_BOTTOM;
     nodes.forEach((nd) => {
       if (nd.type === 'level') { nd.x = MAP_X[slot % MAP_X.length]; slot++; nd.y = cy; cy -= MAP_STEP; }
-      else if (nd.type === 'chest') { const prev = MAP_X[(slot - 1) % MAP_X.length]; nd.x = prev > 50 ? prev - 34 : prev + 34; nd.y = cy + MAP_STEP * 0.5; }
+      else if (nd.type === 'chest') {
+        // Между уровнями n и n+1, со стороны, противоположной дорожке, чтобы не налезать на узлы
+        const a = MAP_X[(slot - 1) % MAP_X.length], b = MAP_X[slot % MAP_X.length], mid = (a + b) / 2;
+        nd.x = Math.max(14, Math.min(86, mid > 50 ? mid - 32 : mid + 32)); nd.y = cy + MAP_STEP * 0.5;
+      }
       else { nd.x = 50; nd.y = cy - 10; cy -= 80; }
       pos.push(nd);
     });
@@ -743,7 +752,9 @@
     pos.filter((nd) => nd.type === 'level' && nd.n % 2 === 0).forEach((nd, i) => {
       const d = document.createElement('div');
       d.className = 'map-deco';
-      d.textContent = E.chapterOf(nd.n).emoji;
+      const set = MAP_DECO[E.chapterOf(nd.n).index % MAP_DECO.length];
+      d.textContent = set[i % set.length];
+      d.style.fontSize = (22 + (i * 7) % 12) + 'px';
       d.style.left = (nd.x > 50 ? 4 + (i % 3) * 3 : 82 + (i % 3) * 3) + '%';
       d.style.top = (nd.y - 20) + 'px';
       d.style.animationDelay = (i * 0.4) + 's';
@@ -789,7 +800,7 @@
         const cls = locked ? 'locked' : isCur ? 'current' : 'done';
         let inner = `<button class="orb ${cls}${cfg.hard ? ' hard' : ''}">${n}</button>`;
         if (!locked && !isCur) inner += `<div class="node-stars">${[1, 2, 3].map((i) => `<i class="${i <= stars ? 'on' : ''}">★</i>`).join('')}</div>`;
-        if (isCur) { inner += `<div class="here-marker"><div class="avatar${state.equippedFrame !== 'none' ? ' frame-' + state.equippedFrame : ''}">${avatarHtml()}</div></div>`; curY = nd.y; }
+        if (isCur) { const nx = pos.find((q) => q.type === 'level' && q.n === n + 1); const side = nx && nx.x > nd.x ? 'l' : 'r'; inner += `<div class="here-marker side-${side}"><div class="avatar${state.equippedFrame !== 'none' ? ' frame-' + state.equippedFrame : ''}">${avatarHtml()}</div></div>`; curY = nd.y; }
         el.innerHTML = inner;
         el.querySelector('.orb').addEventListener('click', () => {
           if (locked) { Sound.nope(); showToast('🔒 Сначала пройди уровень ' + cur); return; }
@@ -824,6 +835,35 @@
     if (g.type === 'score') return fmt(st ? Math.min(st.score, g.target) : 0) + '/' + fmt(g.target);
     return String(Math.max(0, g.target - g.count));
   }
+  /* ============================================================
+     СЮЖЕТНАЯ КАМПАНИЯ: диалоги героев и боссы глав
+     ============================================================ */
+  const isBossLevel = (n) => n % 10 === 0 && n <= RIFT_THRESHOLD;
+  function showStory(chIdx, kind, onDone) {
+    const C = window.FBCampaign;
+    const key = 'story_' + kind + '_' + chIdx;
+    if (!C || state.tips[key] || chIdx > 6) { if (onDone) onDone(); return; }
+    state.tips[key] = true; saveState();
+    const rg = C.region(chIdx), ch = E.chapterOf(chIdx * 10 + 1);
+    const lines = (kind === 'intro' ? rg.intro : rg.outro).slice();
+    let i = 0;
+    $('storyHero').textContent = kind === 'intro' ? rg.hero : rg.boss;
+    $('storyName').textContent = kind === 'intro' ? rg.heroName : rg.bossName;
+    $('storyChapter').textContent = `${ch.emoji} Глава ${ch.number} · ${ch.name}`;
+    const render = () => {
+      $('storyText').textContent = lines[i];
+      $('storyDots').innerHTML = lines.map((_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('');
+      $('btnStoryNext').textContent = i === lines.length - 1 ? 'Вперёд!' : 'Дальше ▶';
+    };
+    $('btnStoryNext').onclick = () => {
+      Sound.click(); haptic('light');
+      if (i < lines.length - 1) { i++; render(); return; }
+      closeModal('modalStory'); if (onDone) onDone();
+    };
+    render();
+    openModal('modalStory');
+  }
+
   let introLevel = 1;
   const introSel = new Set();
   function openIntro(n) {
@@ -834,7 +874,7 @@
     const preview = E.createBoard(cfg, { seed: 7 });
     $('introBadge').textContent = n > RIFT_THRESHOLD ? '🌌' : n;
     $('introTitle').textContent = n > RIFT_THRESHOLD ? '🌌 Глубина ' + (n - RIFT_THRESHOLD) : 'Уровень ' + n + (cfg.hard ? ' 🔥' : '');
-    $('introSub').textContent = n > RIFT_THRESHOLD ? 'Изнанка · чем глубже, тем страннее' : `${ch.emoji} Глава ${ch.number} · ${ch.name}${cfg.hard ? ' · сложный' : ''}`;
+    $('introSub').textContent = n > RIFT_THRESHOLD ? 'Изнанка · чем глубже, тем страннее' : (isBossLevel(n) && window.FBCampaign ? `${window.FBCampaign.region(ch.index).boss} Босс: ${window.FBCampaign.region(ch.index).bossName}` : `${ch.emoji} Глава ${ch.number} · ${ch.name}${cfg.hard ? ' · сложный' : ''}`);
     $('introGoals').innerHTML = preview.goals.map((g) => `<div class="goal-chip"><span class="g-ico">${goalIcon(g)}</span>${g.type === 'score' ? fmt(g.target) : g.target}</div>`).join('');
     const nm = cfg.newMechanic && MECHANIC_INFO[cfg.newMechanic];
     $('introNew').classList.toggle('hidden', !nm);
@@ -845,6 +885,7 @@
     renderPreBoosters();
     renderStuckOffer(n);
     openModal('modalIntro');
+    if ((n - 1) % 10 === 0 && n <= RIFT_THRESHOLD) showStory(ch.index, 'intro');
   }
   const STUCK_OFFERS = ['hammer', 'shuffle'];
   function renderStuckOffer(n) {
@@ -1567,6 +1608,7 @@
     track('lvl_win', { n, moves: st.moves, ms: Date.now() - (board.t0 || Date.now()), stars });
     lastResult = { n, stars, coins, gained, firstClear, moves: st.moves, par: st.par, score: st.score, xp };
     showResult(lastResult);
+    if (firstClear && isBossLevel(n)) setTimeout(() => showStory(E.chapterOf(n).index, 'outro'), 1800);
     if (crossingRift) setTimeout(openRiftPortal, 1400);
     if (MK() && board.run) MK().finishRun(board.run);
     board.run = null;

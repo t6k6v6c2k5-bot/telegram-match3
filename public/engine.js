@@ -71,7 +71,7 @@
     n = Math.max(1, Math.floor(n) || 1);
     const rng = mulberry32(n * 7919 + 1013);
     const size = n <= 3 ? 6 : (n <= 9 ? 7 : 8);
-    const colors = n <= 6 ? 4 : (n <= 24 ? 5 : (n % 3 === 0 ? 6 : 5));
+    const colors = n <= 6 ? 4 : (n <= 24 ? 5 : (n % 10 === 0 ? 6 : 5));
     const cfg = {
       level: n, size, colors, goals: [],
       ice: 0, iceDouble: 0, boxes: 0, boxDouble: 0, locks: 0, ingredients: 0,
@@ -102,8 +102,8 @@
           const k = n < 20 ? 2 : (rng() < 0.5 ? 2 : 3);
           for (let i = 0; i < k; i++) collect(i, fruit - (k === 3 ? 4 : 0));
         } else if (mode === 'ice') {
-          cfg.ice = Math.min(36, 8 + Math.floor(t * 0.5));
-          cfg.iceDouble = n >= 20 ? Math.min(0.5, (n - 20) * 0.015) : 0;
+          cfg.ice = Math.min(28, 8 + Math.floor(t * 0.5));
+          cfg.iceDouble = n >= 20 ? Math.min(0.35, (n - 20) * 0.012) : 0;
           goal('ice');
         } else if (mode === 'box') {
           cfg.boxes = Math.min(14, 4 + Math.floor(t / 4));
@@ -246,6 +246,7 @@
       } else if (g.type === 'ingredient') est = Math.max(est, g.target * S * 0.5 + 3);
       else if (g.type === 'score') est = Math.max(est, g.target / 150);
     }
+    if (st.colors >= 6) est *= 1.3;
     let par = Math.max(6, Math.round(est * 1.15));
     if (cfg && cfg.hard) par = Math.round(par * 1.1);
     return par;

@@ -221,6 +221,13 @@ input, textarea, select { font-family: inherit; user-select: text; -webkit-user-
 .here-marker .avatar { width: 38px; height: 38px; font-size: 16px; border: 3px solid #fff; }
 .here-marker::after { content: ''; width: 0; height: 0; border: 7px solid transparent; border-top-color: #fff; margin-top: -1px; }
 @keyframes here-bob { 50% { transform: translateX(-50%) translateY(-6px); } }
+/* Маркер игрока стоит сбоку от узла, в стороне от следующего уровня, и не закрывает замок */
+.here-marker.side-l, .here-marker.side-r { bottom: auto; top: 50%; flex-direction: row; transform: translateY(-50%); animation: here-bob-side 1.2s ease-in-out infinite; }
+.here-marker.side-l { left: auto; right: calc(100% + 6px); }
+.here-marker.side-r { left: calc(100% + 6px); }
+.here-marker.side-l::after { order: 1; border-top-color: transparent; border-left-color: #fff; margin: 0 0 0 -1px; }
+.here-marker.side-r::after { order: -1; border-top-color: transparent; border-right-color: #fff; margin: 0 -1px 0 0; }
+@keyframes here-bob-side { 50% { transform: translateY(-50%) translateX(-4px); } }
 .chest-node .chest { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; font-size: 30px; background: linear-gradient(160deg, #a0632b, #5d3514); box-shadow: 0 5px 0 rgba(0,0,0,.35); }
 .chest-node .chest.ready { background: linear-gradient(160deg, #ffe066, #f5a623); animation: chest-jump 1s ease-in-out infinite; box-shadow: 0 5px 0 #a8660a, 0 0 22px rgba(255,210,63,.8); }
 .chest-node .chest.opened { opacity: .45; filter: grayscale(.8); }
@@ -989,3 +996,15 @@ body.rift .home-tile, body.rift .chapter-card, body.rift .card { border-color: r
   background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: namefx-rainbow-shift 3s linear infinite;
 }
+
+/* ---------------- Сюжетная кампания ---------------- */
+#modalStory { z-index: 1200; }
+.story-card { width: min(360px, 100%); text-align: center; }
+.story-hero { font-size: 72px; line-height: 1; animation: logo-bob 1.6s ease-in-out infinite; }
+.story-card h3 { margin: 6px 0 0; font-size: 20px; }
+.story-chapter { margin: 2px 0 10px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.story-text { min-height: 84px; margin: 0 0 10px; padding: 12px 14px; border-radius: 16px; background: rgba(255,255,255,.1); font-size: 15px; font-weight: 700; line-height: 1.4; }
+.story-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 12px; }
+.story-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.25); }
+.story-dots i.on { background: var(--gold); }
+.story-boss { color: #ff6b6b; }
