@@ -693,6 +693,11 @@
      ============================================================ */
   const MAP_STEP = 112, MAP_TOP = 150, MAP_BOTTOM = 90;
   const MAP_X = [50, 74, 80, 62, 36, 22, 28, 50];
+  // Декор карты: разные предметы по главам (вместо одного повторяющегося эмодзи)
+  const MAP_DECO = [
+    ['🌱', '🍓', '🌼', '🦋'], ['🌴', '🍊', '🐚', '🍋'], ['🍃', '🍇', '🦋', '🪻'], ['🥥', '🌴', '🦜', '🍍'],
+    ['🌲', '🍄', '🫐', '🦊'], ['🧁', '🍬', '🍩', '🍭'], ['⭐', '🪐', '☄️', '🌙']
+  ];
   function renderMap() {
     const track = $('mapTrack');
     const scroll = $('mapScroll');
@@ -717,7 +722,11 @@
     let cy = H - MAP_BOTTOM;
     nodes.forEach((nd) => {
       if (nd.type === 'level') { nd.x = MAP_X[slot % MAP_X.length]; slot++; nd.y = cy; cy -= MAP_STEP; }
-      else if (nd.type === 'chest') { const prev = MAP_X[(slot - 1) % MAP_X.length]; nd.x = prev > 50 ? prev - 34 : prev + 34; nd.y = cy + MAP_STEP * 0.5; }
+      else if (nd.type === 'chest') {
+        // Между уровнями n и n+1, со стороны, противоположной дорожке, чтобы не налезать на узлы
+        const a = MAP_X[(slot - 1) % MAP_X.length], b = MAP_X[slot % MAP_X.length], mid = (a + b) / 2;
+        nd.x = Math.max(14, Math.min(86, mid > 50 ? mid - 32 : mid + 32)); nd.y = cy + MAP_STEP * 0.5;
+      }
       else { nd.x = 50; nd.y = cy - 10; cy -= 80; }
       pos.push(nd);
     });
@@ -743,7 +752,9 @@
     pos.filter((nd) => nd.type === 'level' && nd.n % 2 === 0).forEach((nd, i) => {
       const d = document.createElement('div');
       d.className = 'map-deco';
-      d.textContent = E.chapterOf(nd.n).emoji;
+      const set = MAP_DECO[E.chapterOf(nd.n).index % MAP_DECO.length];
+      d.textContent = set[i % set.length];
+      d.style.fontSize = (22 + (i * 7) % 12) + 'px';
       d.style.left = (nd.x > 50 ? 4 + (i % 3) * 3 : 82 + (i % 3) * 3) + '%';
       d.style.top = (nd.y - 20) + 'px';
       d.style.animationDelay = (i * 0.4) + 's';
@@ -789,7 +800,7 @@
         const cls = locked ? 'locked' : isCur ? 'current' : 'done';
         let inner = `<button class="orb ${cls}${cfg.hard ? ' hard' : ''}">${n}</button>`;
         if (!locked && !isCur) inner += `<div class="node-stars">${[1, 2, 3].map((i) => `<i class="${i <= stars ? 'on' : ''}">★</i>`).join('')}</div>`;
-        if (isCur) { inner += `<div class="here-marker"><div class="avatar${state.equippedFrame !== 'none' ? ' frame-' + state.equippedFrame : ''}">${avatarHtml()}</div></div>`; curY = nd.y; }
+        if (isCur) { const nx = pos.find((q) => q.type === 'level' && q.n === n + 1); const side = nx && nx.x > nd.x ? 'l' : 'r'; inner += `<div class="here-marker side-${side}"><div class="avatar${state.equippedFrame !== 'none' ? ' frame-' + state.equippedFrame : ''}">${avatarHtml()}</div></div>`; curY = nd.y; }
         el.innerHTML = inner;
         el.querySelector('.orb').addEventListener('click', () => {
           if (locked) { Sound.nope(); showToast('🔒 Сначала пройди уровень ' + cur); return; }
